@@ -1,10 +1,10 @@
 import logging
+import asyncio
 import schedule
 import time
 from datetime import datetime, timedelta
-from pyrogram import Client, filters
-from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
-from config import BOT_TOKEN, API_ID, API_HASH
+from telethon import TelegramClient, events, Button
+from config import API_ID, API_HASH, BOT_TOKEN, OWNER_ID
 from modules import check_message, contains_restricted_chars, ai_response, clean_logs
 from modules.database import add_banned_word, remove_banned_word
 
@@ -15,93 +15,132 @@ logging.basicConfig(
     format="%(asctime)s - %(levelname)s - %(message)s",
 )
 
-# Inisialisasi bot
-app = Client("hirokesbot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
+# Inisialisasi bot Telethon
+bot = TelegramClient("hirokesbot", API_ID, API_HASH).start(bot_token=BOT_TOKEN)
 
 # Variabel kontrol bot
 bot_aktif = False
 admin_list = []
-owner_id = 5432983527  # Ganti dengan ID pemilik bot
 bot_expiry = None
 
-# Membersihkan log setiap 7 hari sekali
+# Menjadwalkan pembersihan log setiap 7 hari
 schedule.every(7).days.do(clean_logs)
 
-@app.on_message(filters.command("start") & filters.private)
-async def start_handler(client, message):
-    """Menampilkan pesan sambutan bot."""
-    text = "Hallo saya adalah Hirokes, yang bisa membantu mengamankan GC Anda dari spamer.\nTambahkan saya dan jadikan admin.\nTekan /help untuk bantuan."
-    await message.reply_text(text)
+async def run_schedule():
+    """Menjalankan schedule secara asinkron"""
+    while True:
+        schedule.run_pending()
+        await asyncio.sleep(60)
 
-@app.on_message(filters.command("aktifbt") & filters.user(owner_id))
-async def aktifkan_bot(client, message):
+# Handler untuk perintah /start
+@bot.on(events.NewMessage(pattern="/start"))
+async def start_handler(event):
+    """Menampilkan pesan sambutan bot."""
+    await event.respond(
+        "Hallo saya adalah Hirokes, yang bisa membantu mengamankan GC Anda dari spamer.\n"
+        "Tambahkan saya dan jadikan admin.\nTekan /help untuk bantuan."
+    )
+
+# Handler untuk perintah /help
+@bot.on(events.NewMessage(pattern="/help"))
+async def help_handler(event):
+    """Menampilkan daftar perintah bot."""
+    help_text = """🔹 **Daftar Perintah Bot Hirokes** 🔹
+    
+    **Admin & Owner Commands:**
+    - /kontrol → Menampilkan tombol ON & OFF untuk mengontrol bot
+    - /bl (reply text) → Menambahkan kata ke daftar kata terlarang
+    - /inbl (reply user) → Memblokir pengguna agar semua pesan dihapus
+    - /unbl (username) → Menghapus pengguna dari daftar blokir
+    
+    **Owner Commands Only:**
+    - /aktifbt → Mengaktifkan bot selama 1 bulan
+    - /dfadmin (reply user) → Menjadikan pengguna sebagai admin bot
+    - /unak → Mematikan seluruh fungsi bot
+    - /ceklog → Mengirim file log bot.log ke owner
+    """
+    await event.respond(help_text)
+
+# Handler untuk mengaktifkan bot
+@bot.on(events.NewMessage(pattern="/aktifbt"))
+async def aktifkan_bot(event):
     """Mengaktifkan bot selama 1 bulan."""
     global bot_aktif, bot_expiry
+    if event.sender_id != OWNER_ID:
+        return
     bot_aktif = True
     bot_expiry = datetime.now() + timedelta(days=30)
     logging.info("Bot diaktifkan oleh owner.")
-    await message.reply_text("✅ Bot telah diaktifkan dan akan bekerja selama 1 bulan.")
+    await event.respond("✅ Bot telah diaktifkan dan akan bekerja selama 1 bulan.")
 
-@app.on_message(filters.command("unak") & filters.user(owner_id))
-async def matikan_bot(client, message):
+# Handler untuk mematikan bot
+@bot.on(events.NewMessage(pattern="/unak"))
+async def matikan_bot(event):
     """Mematikan bot sepenuhnya."""
     global bot_aktif
+    if event.sender_id != OWNER_ID:
+        return
     bot_aktif = False
     logging.info("Bot dimatikan oleh owner.")
-    await message.reply_text("❌ Bot telah dimatikan. Tidak akan merespon perintah.")
+    await event.respond("❌ Bot telah dimatikan. Tidak akan merespon perintah.")
 
-@app.on_message(filters.command("kontrol") & filters.user(admin_list))
-async def kontrol_bot(client, message):
+# Handler untuk mengontrol bot dengan tombol inline
+@bot.on(events.NewMessage(pattern="/kontrol"))
+async def kontrol_bot(event):
     """Menampilkan tombol kontrol bot (ON/OFF)."""
-    keyboard = InlineKeyboardMarkup([
-        [InlineKeyboardButton("✅ ON", callback_data="on"),
-         InlineKeyboardButton("❌ OFF", callback_data="off")]
-    ])
-    await message.reply_text("🔹 Aktifkan atau matikan bot:", reply_markup=keyboard)
+    if event.sender_id not in admin_list:
+        return
+    keyboard = [
+        [Button.inline("✅ ON", b"on"), Button.inline("❌ OFF", b"off")]
+    ]
+    await event.respond("🔹 Aktifkan atau matikan bot:", buttons=keyboard)
 
-@app.on_callback_query()
-async def button_callback(client, callback_query):
+@bot.on(events.CallbackQuery)
+async def button_callback(event):
     """Mengontrol bot dengan tombol inline."""
     global bot_aktif
-    if callback_query.data == "on":
+    if event.data == b"on":
         bot_aktif = True
-        await callback_query.message.edit_text("✅ Bot telah diaktifkan.")
-    elif callback_query.data == "off":
+        await event.edit("✅ Bot telah diaktifkan.")
+    elif event.data == b"off":
         bot_aktif = False
-        await callback_query.message.edit_text("❌ Bot telah dimatikan.")
+        await event.edit("❌ Bot telah dimatikan.")
 
-@app.on_message(filters.command("ceklog") & filters.user(owner_id))
-async def kirim_log(client, message):
+# Handler untuk mengirim log ke owner
+@bot.on(events.NewMessage(pattern="/ceklog"))
+async def kirim_log(event):
     """Mengirim file log ke pemilik bot."""
+    if event.sender_id != OWNER_ID:
+        return
     try:
-        await message.reply_document("logs/bot.log")
+        await bot.send_file(event.chat_id, "logs/bot.log")
         logging.info("Log dikirim ke owner.")
     except Exception as e:
-        await message.reply_text("❌ Gagal mengirim log.")
+        await event.respond("❌ Gagal mengirim log.")
         logging.error(f"Error mengirim log: {e}")
 
-@app.on_message(filters.group & filters.text)
-async def message_handler(client, message):
+# Handler untuk memeriksa pesan dalam grup
+@bot.on(events.NewMessage())
+async def message_handler(event):
     """Memeriksa pesan yang masuk ke grup jika bot dalam kondisi aktif."""
     if not bot_aktif:
         return  # Jika bot tidak aktif, abaikan semua pesan
 
-    # Periksa apakah pesan mengandung kata terlarang atau karakter spesial
-    if await check_message(message) or contains_restricted_chars(message.text):
-        await message.delete()
-        await message.reply_text("alay lu.", quote=True)
-        logging.info(f"Pesan dari {message.from_user.id} dihapus karena alay jamet.")
+    text = event.message.text
+    if await check_message(text) or contains_restricted_chars(text):
+        await event.delete()
+        await event.respond("Maaf, pesan Anda mengandung karakter atau kata terlarang.")
+        logging.info(f"Pesan dari {event.sender_id} dihapus karena mengandung kata terlarang.")
 
-    elif message.text.lower().startswith("bot"):
-        response = ai_response(message.text)
-        await message.reply_text(response, quote=True)
-        logging.info(f"Bot merespons {message.from_user.id} dengan AI.")
+    elif text.lower().startswith("bot"):
+        response = ai_response(text)
+        await event.respond(response)
+        logging.info(f"Bot merespons {event.sender_id} dengan AI.")
 
-# Jalankan bot & scheduler untuk membersihkan log
-if __name__ == "__main__":
+# Menjalankan bot
+async def main():
     logging.info("Bot telah berjalan...")
+    await asyncio.gather(bot.run_until_disconnected(), run_schedule())
 
-    while True:
-        schedule.run_pending()
-        time.sleep(60)  # Cek setiap 60 detik
-    app.run()
+if __name__ == "__main__":
+    asyncio.run(main())

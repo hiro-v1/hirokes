@@ -1,5 +1,7 @@
-pyrogram
+telethon
+schedule
 pymongo
 python-dotenv
+requests
 transformers
 torch

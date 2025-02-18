@@ -1,20 +1,17 @@
-from transformers import pipeline
-from config import HUGGINGFACE_MODEL
-
-# Inisialisasi model AI dari Hugging Face
-try:
-    ai_model = pipeline("text-generation", model=HUGGINGFACE_MODEL)
-except Exception as e:
-    print(f"❌ ERROR: Gagal memuat model AI: {e}")
-    ai_model = None  # Hindari crash jika model gagal dimuat
+import requests
+import json
+from config import HUGGINGFACE_MODEL, HUGGINGFACE_API_KEY
 
 def ai_response(user_input):
-    """Membalas pesan menggunakan AI Hugging Face"""
-    if ai_model is None:
-        return "❌ Maaf, model AI tidak dapat dimuat."
-
-    try:
-        response = ai_model(user_input, max_length=100, num_return_sequences=1)
-        return response[0]["generated_text"]
-    except Exception as e:
-        return f"❌ Error saat menjawab: {e}"
+    """Menggunakan API Hugging Face untuk merespons pengguna."""
+    API_URL = f"https://api-inference.huggingface.co/models/{HUGGINGFACE_MODEL}"
+    headers = {"Authorization": f"Bearer {HUGGINGFACE_API_KEY}"}
+    
+    payload = {"inputs": user_input}
+    response = requests.post(API_URL, headers=headers, json=payload)
+    
+    if response.status_code == 200:
+        result = response.json()
+        return result[0]['generated_text'] if result else "Saya tidak tahu bagaimana menjawab itu."
+    else:
+        return "Maaf, saya mengalami kesalahan saat mencoba menjawab."

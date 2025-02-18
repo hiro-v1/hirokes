@@ -33,27 +33,6 @@ async def start_handler(client, message):
     text = "Hallo saya adalah Hirokes, yang bisa membantu mengamankan GC Anda dari spamer.\nTambahkan saya dan jadikan admin.\nTekan /help untuk bantuan."
     await message.reply_text(text)
 
-@app.on_message(filters.command("help") & filters.private)
-async def help_handler(client, message):
-    """Menampilkan daftar perintah bantuan."""
-    help_text = """🔹 **Daftar Perintah Bot Hirokes** 🔹
-    
-    **Admin & Owner Commands:**
-    - /kontrol → Menampilkan tombol ON & OFF untuk mengontrol bot
-    - /bl (reply text) → Menambahkan kata ke daftar kata terlarang
-    - /inbl (reply user) → Memblokir pengguna agar semua pesan dihapus
-    - /unbl (username) → Menghapus pengguna dari daftar blokir
-    
-    **Owner Commands Only:**
-    - /aktifbt → Mengaktifkan bot selama 1 bulan
-    - /dfadmin (reply user) → Menjadikan pengguna sebagai admin bot
-    - /unak → Mematikan seluruh fungsi bot
-    - /ceklog → Mengirim file log bot.log ke owner
-    
-    **Bot harus diaktifkan dengan /aktifbt sebelum dapat digunakan silahkan hubungi @hiro_v1.**
-    """
-    await message.reply_text(help_text)
-
 @app.on_message(filters.command("aktifbt") & filters.user(owner_id))
 async def aktifkan_bot(client, message):
     """Mengaktifkan bot selama 1 bulan."""
@@ -70,15 +49,6 @@ async def matikan_bot(client, message):
     bot_aktif = False
     logging.info("Bot dimatikan oleh owner.")
     await message.reply_text("❌ Bot telah dimatikan. Tidak akan merespon perintah.")
-
-@app.on_message(filters.command("dfadmin") & filters.user(owner_id))
-async def tambah_admin(client, message):
-    """Menambahkan admin bot."""
-    if message.reply_to_message:
-        admin_id = message.reply_to_message.from_user.id
-        admin_list.append(admin_id)
-        logging.info(f"Admin ditambahkan: {admin_id}")
-        await message.reply_text(f"✅ Pengguna {admin_id} telah menjadi admin bot.")
 
 @app.on_message(filters.command("kontrol") & filters.user(admin_list))
 async def kontrol_bot(client, message):
@@ -100,33 +70,6 @@ async def button_callback(client, callback_query):
         bot_aktif = False
         await callback_query.message.edit_text("❌ Bot telah dimatikan.")
 
-@app.on_message(filters.command("bl") & filters.user(admin_list))
-async def tambah_blacklist(client, message):
-    """Menambahkan kata ke daftar kata terlarang."""
-    if message.reply_to_message:
-        word = message.reply_to_message.text.lower()
-        add_banned_word(word)
-        logging.info(f"Kata terlarang ditambahkan: {word}")
-        await message.reply_text(f"✅ Kata '{word}' telah ditambahkan ke blacklist.")
-
-@app.on_message(filters.command("inbl") & filters.user(admin_list))
-async def blokir_pengguna(client, message):
-    """Memblokir pengguna agar semua pesannya dihapus."""
-    if message.reply_to_message:
-        user_id = message.reply_to_message.from_user.id
-        add_banned_word(str(user_id))  # Simpan sebagai string
-        logging.info(f"Pengguna {user_id} diblokir.")
-        await message.reply_text(f"🚫 Pengguna {user_id} telah diblokir.")
-
-@app.on_message(filters.command("unbl") & filters.user(admin_list))
-async def hapus_blokir(client, message):
-    """Menghapus pengguna dari daftar blokir."""
-    if len(message.command) > 1:
-        user_id = message.command[1]
-        remove_banned_word(user_id)
-        logging.info(f"Pengguna {user_id} dibebaskan dari blokir.")
-        await message.reply_text(f"✅ Pengguna {user_id} telah dibebaskan.")
-
 @app.on_message(filters.command("ceklog") & filters.user(owner_id))
 async def kirim_log(client, message):
     """Mengirim file log ke pemilik bot."""
@@ -136,6 +79,23 @@ async def kirim_log(client, message):
     except Exception as e:
         await message.reply_text("❌ Gagal mengirim log.")
         logging.error(f"Error mengirim log: {e}")
+
+@app.on_message(filters.group & filters.text)
+async def message_handler(client, message):
+    """Memeriksa pesan yang masuk ke grup jika bot dalam kondisi aktif."""
+    if not bot_aktif:
+        return  # Jika bot tidak aktif, abaikan semua pesan
+
+    # Periksa apakah pesan mengandung kata terlarang atau karakter spesial
+    if await check_message(message) or contains_restricted_chars(message.text):
+        await message.delete()
+        await message.reply_text("Maaf, pesan Anda mengandung karakter atau kata terlarang.", quote=True)
+        logging.info(f"Pesan dari {message.from_user.id} dihapus karena mengandung kata terlarang.")
+
+    elif message.text.lower().startswith("bot"):
+        response = ai_response(message.text)
+        await message.reply_text(response, quote=True)
+        logging.info(f"Bot merespons {message.from_user.id} dengan AI.")
 
 # Jalankan bot & scheduler untuk membersihkan log
 if __name__ == "__main__":

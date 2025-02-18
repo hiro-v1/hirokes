@@ -1,0 +1,5 @@
+pyrogram
+pymongo
+python-dotenv
+transformers
+torch

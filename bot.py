@@ -89,8 +89,8 @@ async def message_handler(client, message):
     # Periksa apakah pesan mengandung kata terlarang atau karakter spesial
     if await check_message(message) or contains_restricted_chars(message.text):
         await message.delete()
-        await message.reply_text("Maaf, pesan Anda mengandung karakter atau kata terlarang.", quote=True)
-        logging.info(f"Pesan dari {message.from_user.id} dihapus karena mengandung kata terlarang.")
+        await message.reply_text("alay lu.", quote=True)
+        logging.info(f"Pesan dari {message.from_user.id} dihapus karena alay jamet.")
 
     elif message.text.lower().startswith("bot"):
         response = ai_response(message.text)

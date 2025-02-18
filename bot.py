@@ -21,7 +21,7 @@ app = Client("hirokesbot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN
 # Variabel kontrol bot
 bot_aktif = False
 admin_list = []
-owner_id = 123456789  # Ganti dengan ID pemilik bot
+owner_id = 5432983527  # Ganti dengan ID pemilik bot
 bot_expiry = None
 
 # Membersihkan log setiap 7 hari sekali

@@ -2,12 +2,19 @@ from transformers import pipeline
 from config import HUGGINGFACE_MODEL
 
 # Inisialisasi model AI dari Hugging Face
-ai_model = pipeline("conversational", model=HUGGINGFACE_MODEL)
+try:
+    ai_model = pipeline("text-generation", model=HUGGINGFACE_MODEL)
+except Exception as e:
+    print(f"❌ ERROR: Gagal memuat model AI: {e}")
+    ai_model = None  # Hindari crash jika model gagal dimuat
 
 def ai_response(user_input):
     """Membalas pesan menggunakan AI Hugging Face"""
+    if ai_model is None:
+        return "❌ Maaf, model AI tidak dapat dimuat."
+
     try:
-        response = ai_model(user_input)
+        response = ai_model(user_input, max_length=100, num_return_sequences=1)
         return response[0]["generated_text"]
     except Exception as e:
-        return "Maaf, saya tidak bisa menjawab coba tanya bang hiro."
+        return f"❌ Error saat menjawab: {e}"

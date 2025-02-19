@@ -35,6 +35,10 @@ def get_admins():
     admins.add(OWNER_ID)  # Pastikan pemilik bot selalu ada di daftar admin
     return admins
 
+def is_admin(user_id):
+    """Memeriksa apakah pengguna adalah admin."""
+    return user_id in get_admins()
+
 ### ✅ Fungsi untuk Blokir & Unblokir Pengguna ###
 def add_banned_user(user_id):
     """Menambahkan pengguna ke daftar blokir."""
@@ -48,6 +52,10 @@ def remove_banned_user(user_id):
 def get_banned_users():
     """Mengambil daftar pengguna yang diblokir."""
     return {user["user_id"] for user in banned_users.find({}, {"user_id": 1, "_id": 0})}
+
+def is_banned(user_id):
+    """Memeriksa apakah pengguna diblokir."""
+    return user_id in get_banned_users()
 
 ### ✅ Fungsi untuk Mengatur Kata Terlarang ###
 def add_banned_word(word):

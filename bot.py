@@ -41,41 +41,7 @@ bot = TelegramClient("hirokesbot", API_ID, API_HASH).start(bot_token=BOT_TOKEN)
 admin_list = get_admins()
 banned_users = get_banned_users()
 banned_words_set = get_banned_words()
-
-def is_admin_or_owner(user_id):
-    return user_id == OWNER_ID or user_id in admin_list
-
-# Update the existing message_handler function
-@bot.on(events.NewMessage())
-async def message_handler(event):
-    """Memeriksa pesan yang masuk ke grup jika bot dalam kondisi aktif."""
-    if not bot_aktif:
-        return  # Jika bot tidak aktif, abaikan semua pesan
-
-    user_id = event.sender_id
-
-    # Skip deletion if the user is an admin or the owner
-    if is_admin_or_owner(user_id):
-        return
-
-    # Jika pengguna dalam daftar blokir, hapus pesan mereka
-    if user_id in banned_users:
-        await event.delete()
-        logging.info(f"🚫 Pesan dari {user_id} dihapus karena pengguna ini diblokir.")
-        return
-
-    text = event.message.text
-    if await check_message(text) or contains_restricted_chars(text):
-        await event.delete()
-        notification_message = await event.respond("⚠️ **hapus aja ah Pesannya Alay.**")
-        await asyncio.sleep(5)
-        await notification_message.delete()
-        logging.info(f"🛑 Pesan dari {event.sender_id} dihapus karena melanggar aturan.")
-    elif text.lower().startswith("bot"):
-        response = ai_response(text)
-        await event.respond(response)
-        logging.info(f"🤖 Bot merespons {event.sender_id} dengan AI.")
-        
+       
 # Variabel kontrol bot
 bot_aktif = False
 bot_expiry = None
@@ -184,11 +150,27 @@ async def kirim_log(event):
         await event.respond("❌ Gagal mengirim log.")         
         logging.error(f"⚠️ Error mengirim log: {e}")  
 
+def is_admin_or_owner(user_id):
+    return user_id == OWNER_ID or user_id in admin_list
+
+# Update the existing message_handler function
 @bot.on(events.NewMessage())
 async def message_handler(event):
     """Memeriksa pesan yang masuk ke grup jika bot dalam kondisi aktif."""
     if not bot_aktif:
         return  # Jika bot tidak aktif, abaikan semua pesan
+
+    user_id = event.sender_id
+
+    # Skip deletion if the user is an admin or the owner
+    if is_admin_or_owner(user_id):
+        return
+
+    # Jika pengguna dalam daftar blokir, hapus pesan mereka
+    if user_id in banned_users:
+        await event.delete()
+        logging.info(f"🚫 Pesan dari {user_id} dihapus karena pengguna ini diblokir.")
+        return
 
     text = event.message.text
     if await check_message(text) or contains_restricted_chars(text):

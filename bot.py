@@ -104,7 +104,7 @@ async def matikan_bot(event):
     """Mematikan bot sepenuhnya."""
     global bot_aktif
     if event.sender_id != OWNER_ID:
-            return await event.respond("❌ Anda tidak memiliki izin untuk menggunakan perintah ini.")    
+        return await event.respond("❌ Anda tidak memiliki izin untuk menggunakan perintah ini.")    
     bot_aktif = False
     logging.info("❌ Bot dimatikan oleh owner.")
     await event.respond("❌ **Bot telah dimatikan** dan tidak akan merespons perintah.")
@@ -113,13 +113,13 @@ async def matikan_bot(event):
 async def kontrol_bot(event):
     """Menampilkan tombol kontrol bot (ON/OFF)."""
     if event.sender_id != OWNER_ID:
-         return await event.respond("❌ Anda tidak memiliki izin untuk menggunakan perintah ini.")
+        return await event.respond("❌ Anda tidak memiliki izin untuk menggunakan perintah ini.")
     if event.sender_id not in admin_list:
-         return await event.respond("❌ Anda tidak memiliki izin untuk menggunakan perintah ini.")
+        return await event.respond("❌ Anda tidak memiliki izin untuk menggunakan perintah ini.")
     keyboard = [
         [Button.inline("✅ ON", b"on"), Button.inline("❌ OFF", b"off")]
     ]
-        await event.respond("🔹 **Kontrol Bot:** Aktifkan atau matikan bot.", buttons=keyboard)
+    await event.respond("🔹 **Kontrol Bot:** Aktifkan atau matikan bot.", buttons=keyboard)
 
 @bot.on(events.CallbackQuery)
 async def button_callback(event):
@@ -127,8 +127,8 @@ async def button_callback(event):
     global bot_aktif
     if event.data == b"on":
         bot_aktif = True
-        await event.edit("✅ ** yey selamat Bot telah diaktifkan.**")
-     elif event.data == b"off":
+        await event.edit("✅ **Bot telah diaktifkan.**")
+    elif event.data == b"off":
         bot_aktif = False
         await event.edit("❌ **Bot telah dimatikan.**")  
 
@@ -136,13 +136,14 @@ async def button_callback(event):
 async def kirim_log(event):
     """Mengirim file log ke pemilik bot."""
     if event.sender_id != OWNER_ID:
-         return await event.respond("❌ Anda tidak memiliki izin untuk menggunakan perintah ini.")
-     try:
+        return await event.respond("❌ Anda tidak memiliki izin untuk menggunakan perintah ini.")
+    try:
         await bot.send_file(event.chat_id, "logs/bot.log")
         logging.info("📤 Log dikirim ke owner @hiro_v1.") 
     except Exception as e:
         await event.respond("❌ Gagal mengirim log.")         
         logging.error(f"⚠️ Error mengirim log: {e}")  
+
 @bot.on(events.NewMessage())
 async def message_handler(event):
     """Memeriksa pesan yang masuk ke grup jika bot dalam kondisi aktif."""

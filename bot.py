@@ -1,4 +1,5 @@
 import logging
+import sys
 import asyncio
 import schedule
 import os
@@ -19,15 +20,18 @@ from modules.log_cleaner import clean_logs
 if not os.path.exists("logs"):
     os.makedirs("logs")
 
-# Konfigurasi logging
+# Konfigurasi logging yang benar untuk Python 3.8
 logging.basicConfig(
-    filename="logs/bot.log",
     level=logging.INFO,
     format="%(asctime)s - %(levelname)s - %(message)s",
+    handlers=[
+        logging.FileHandler("logs/bot.log", encoding="utf-8"),
+        logging.StreamHandler(sys.stdout)
+    ]
 )
 
-# Inisialisasi bot Telethon
-bot = TelegramClient("hirokesbot", API_ID, API_HASH).start(bot_token=BOT_TOKEN)
+# Inisialisasi bot Telethon dengan connection_pool_size untuk menghindari database lock
+bot = TelegramClient("hirokesbot", API_ID, API_HASH, connection_pool_size=100).start(bot_token=BOT_TOKEN)
 
 # Memuat daftar admin dan pengguna yang diblokir dari database
 admin_list = get_admins()
@@ -52,7 +56,7 @@ async def start_handler(event):
     await event.respond(
         "🛡️ **HirokesBot Aktif!** 🛡️\n"
         "Saya bisa membantu mengamankan grup dari spammer dan kata terlarang.\n\n"
-        "🔹 Tambahkan saya ke grup dan jadikan admin.\n"
+        "🔹 Tambahkan saya ke grup dan jadikan admin hubungi @hiro_v1.\n"
         "🔹 Gunakan /help untuk daftar perintah."
     )
 
@@ -85,76 +89,9 @@ async def help_handler(event):
 async def tambah_admin(event):
     """Menambahkan admin yang dapat mengontrol bot."""
     if event.sender_id != OWNER_ID:
-        return await event.respond("❌ Anda tidak memiliki izin untuk menggunakan perintah ini, bilang ke bang @hiro_v1.")
-
-    if event.is_reply:
-        replied_user = await event.get_reply_message()
-        user_id = replied_user.sender_id
-        if user_id not in admin_list:
-            add_admin(user_id)
-            admin_list.add(user_id)
-            logging.info(f"✅ Admin ditambahkan: {user_id}")
-            await event.respond(f"✅ **Admin {user_id} telah ditambahkan** dan dapat menggunakan `/kontrol`.")
-        else:
-            await event.respond("⚠️ Pengguna ini sudah menjadi admin.")
-    else:
-        await event.respond("❌ Gunakan perintah ini dengan mereply pesan pengguna.")
-
-@bot.on(events.NewMessage(pattern="/unadm"))
-async def hapus_admin(event):
-    """Menghapus admin dari daftar kontrol bot."""
-    if event.sender_id != OWNER_ID:
         return await event.respond("❌ Anda tidak memiliki izin untuk menggunakan perintah ini.")
 
     if event.is_reply:
         replied_user = await event.get_reply_message()
         user_id = replied_user.sender_id
-        if user_id in admin_list:
-            remove_admin(user_id)
-            admin_list.remove(user_id)
-            logging.info(f"❌ Admin dihapus: {user_id}")
-            await event.respond(f"❌ **Admin {user_id} telah dihapus dari daftar kontrol.**")
-        else:
-            await event.respond("⚠️ Pengguna ini bukan admin.")
-    else:
-        await event.respond("❌ Gunakan perintah ini dengan mereply pesan pengguna.")
-
-@bot.on(events.NewMessage(pattern="/ask"))
-async def ask_ai(event):
-    """Menggunakan AI untuk menjawab pertanyaan pengguna."""
-    text = event.message.text.replace("/ask", "").strip()
-    if text:
-        response = ai_response(text)
-        await event.respond(response)
-    else:
-        await event.respond("💬 **Gunakan perintah ini dengan mengetikkan pertanyaan setelah /ask.**")
-
-@bot.on(events.NewMessage())
-async def message_handler(event):
-    """Memeriksa pesan yang masuk ke grup jika bot dalam kondisi aktif."""
-    if not bot_aktif:
-        return
-
-    user_id = event.sender_id
-
-    # Jika pengguna dalam daftar blokir, hapus pesan mereka
-    if user_id in banned_users:
-        await event.delete()
-        logging.info(f"🚫 Pesan dari {user_id} dihapus karena pengguna ini alay.")
-        return
-
-    text = event.message.text
-
-    # Periksa apakah pesan mengandung kata terlarang atau karakter spesial
-    if await check_message(text) or contains_restricted_chars(text):
-        await event.delete()
-        await event.respond("⚠️ **Pesan lu alay.**")
-        logging.info(f"🛑 Pesan dari {user_id} dihapus karena mengandung kata terlarang atau karakter spesial.")
-
-async def main():
-    logging.info("🚀 Bot telah berjalan...")
-    await asyncio.gather(bot.run_until_disconnected(), run_schedule())
-
-if __name__ == "__main__":
-    loop = asyncio.get_event_loop()
-    loop.run_until_complete(main())
+     

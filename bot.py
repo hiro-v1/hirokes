@@ -12,7 +12,8 @@ from modules.ai import ai_response
 from modules.database import (
     add_admin, remove_admin, get_admins, 
     add_banned_user, remove_banned_user, get_banned_users,
-    add_banned_word, remove_banned_word
+    add_banned_word, remove_banned_word, get_banned_words,
+    banned_words, banned_users
 )
 from modules.log_cleaner import clean_logs
 
@@ -39,6 +40,7 @@ bot = TelegramClient("hirokesbot", API_ID, API_HASH).start(bot_token=BOT_TOKEN)
 # Memuat daftar admin dan pengguna yang diblokir dari database
 admin_list = get_admins()
 banned_users = get_banned_users()
+banned_words_set = get_banned_words()
 
 # Variabel kontrol bot
 bot_aktif = False
@@ -223,7 +225,7 @@ async def ask_ai(event):
 @bot.on(events.NewMessage(pattern="/bl"))
 async def tambah_kata_terlarang(event):
     """Menambah kata terlarang ke dalam database."""
-    global banned_words
+    global banned_words_set
     if event.sender_id != OWNER_ID and event.sender_id not in admin_list:
         return await event.respond("❌ Anda tidak memiliki izin untuk menggunakan perintah ini.")
     if event.is_reply:
@@ -233,7 +235,7 @@ async def tambah_kata_terlarang(event):
         word = event.message.text.replace("/bl", "").strip()
     if word:
         add_banned_word(word)
-        banned_words.add(word)
+        banned_words_set.add(word)
         logging.info(f"⚠️ Kata terlarang ditambahkan: {word}")
         await event.respond(f"⚠️ **Kata terlarang \"{word}\" telah ditambahkan.**")
     else:
@@ -242,15 +244,15 @@ async def tambah_kata_terlarang(event):
 @bot.on(events.NewMessage(pattern="/inbl"))
 async def tambah_pengguna_blacklist(event):
     """Menambahkan pengguna ke daftar blacklist."""
-    global banned_users
+    global banned_users_set
     if event.sender_id != OWNER_ID and event.sender_id not in admin_list:
         return await event.respond("❌ Anda tidak memiliki izin untuk menggunakan perintah ini.")
     if event.is_reply:
         replied_user = await event.get_reply_message()
         user_id = replied_user.sender_id
-        if user_id not in banned_users:
+        if user_id not in banned_users_set:
             add_banned_user(user_id)
-            banned_users.add(user_id)
+            banned_users_set.add(user_id)
             logging.info(f"🚫 Pengguna diblokir: {user_id}")
             await event.respond(f"🚫 **Pengguna {user_id} telah diblokir.**")
         else:
@@ -261,21 +263,40 @@ async def tambah_pengguna_blacklist(event):
 @bot.on(events.NewMessage(pattern="/unbl"))
 async def hapus_pengguna_blacklist(event):
     """Menghapus pengguna dari daftar blacklist."""
-    global banned_users
+    global banned_users_set
     if event.sender_id != OWNER_ID and event.sender_id not in admin_list:
         return await event.respond("❌ Anda tidak memiliki izin untuk menggunakan perintah ini.")
     if event.is_reply:
         replied_user = await event.get_reply_message()
         user_id = replied_user.sender_id
-        if user_id in banned_users:
+        if user_id in banned_users_set:
             remove_banned_user(user_id)
-            banned_users.remove(user_id)
+            banned_users_set.remove(user_id)
             logging.info(f"❌ Pengguna dihapus dari blacklist: {user_id}")
             await event.respond(f"❌ **Pengguna {user_id} telah dihapus dari daftar blacklist.**")
         else:
             await event.respond("⚠️ Pengguna ini tidak ada dalam daftar blacklist.")
     else:
         await event.respond("❌ Gunakan perintah ini dengan mereply pesan pengguna.")
+        
+@bot.on(events.NewMessage())
+async def message_handler(event):
+    """Memeriksa pesan yang masuk ke grup jika bot dalam kondisi aktif."""
+    if not bot_aktif:
+        return
+
+    user_id = event.sender_id
+
+    # Jika pengguna dalam daftar blokir, hapus pesan mereka
+    if user_id in banned_users:
+        await event.delete()
+        logging.info(f"🚫 Pesan dari {user_id} dihapus karena pengguna ini diblokir.")
+        return
+
+    text = event.message.text
+    
+# Tambahkan variabel untuk menyimpan jumlah pelanggaran pengguna
+mention_warnings = {}
 
 @bot.on(events.NewMessage())
 async def message_handler(event):
@@ -292,6 +313,30 @@ async def message_handler(event):
         return
 
     text = event.message.text
+
+    # Deteksi penyebutan username dengan @(username)
+    if "@" in text:
+        mentioned_user = text.split("@")[1].split()[0]
+        if not await bot.get_participants(event.chat_id, filter=telethon.tl.types.ChannelParticipantsSearch(mentioned_user)):
+            await event.delete()
+            if user_id not in mention_warnings:
+                mention_warnings[user_id] = 0
+            mention_warnings[user_id] += 1
+
+            if mention_warnings[user_id] == 1:
+                warning_message = await event.respond(f"⚠️ invit orang yang lu {event.sender.username} tag kesini dong")
+            elif mention_warnings[user_id] == 2:
+                warning_message = await event.respond(f"⚠️ saya sudah peringatkan jika masih di lakukan akan saya blacklist")
+            else:
+                add_banned_user(user_id)
+                banned_users.add(user_id)
+                logging.info(f"🚫 Pengguna diblokir: {user_id}")
+                await event.respond(f"🚫 **Pengguna {user_id} telah diblokir karena melanggar aturan.**")
+                return
+
+            await asyncio.sleep(5)
+            await warning_message.delete()
+            return
 
     # Periksa apakah pesan mengandung kata terlarang atau karakter spesial
     if await check_message(text) or contains_restricted_chars(text):

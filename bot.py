@@ -112,10 +112,14 @@ async def matikan_bot(event):
 @bot.on(events.NewMessage(pattern="/kontrol"))
 async def kontrol_bot(event):
     """Menampilkan tombol kontrol bot (ON/OFF)."""
-    if event.sender_id != OWNER_ID:
+    
+    global admin_list
+    admin_list = get_admins()  # Ambil ulang daftar admin dari database setiap kali perintah dijalankan
+    
+    # Pastikan OWNER_ID selalu memiliki akses
+    if event.sender_id != OWNER_ID and event.sender_id not in admin_list:
         return await event.respond("❌ Anda tidak memiliki izin untuk menggunakan perintah ini.")
-    if event.sender_id not in admin_list:
-        return await event.respond("❌ Anda tidak memiliki izin untuk menggunakan perintah ini.")
+    
     keyboard = [
         [Button.inline("✅ ON", b"on"), Button.inline("❌ OFF", b"off")]
     ]
@@ -163,12 +167,17 @@ async def message_handler(event):
 @bot.on(events.NewMessage(pattern="/adm"))
 async def tambah_admin(event):
     """Menambahkan admin yang dapat mengontrol bot."""
+    
     if event.sender_id != OWNER_ID:
         return await event.respond("❌ Anda tidak memiliki izin untuk menggunakan perintah ini.")
 
     if event.is_reply:
         replied_user = await event.get_reply_message()
         user_id = replied_user.sender_id
+
+        if user_id == OWNER_ID:
+            return await event.respond("⚠️ Pemilik bot sudah memiliki akses penuh.")
+
         if user_id not in admin_list:
             add_admin(user_id)
             admin_list.add(user_id)
@@ -178,6 +187,7 @@ async def tambah_admin(event):
             await event.respond("⚠️ Pengguna ini sudah menjadi admin.")
     else:
         await event.respond("❌ Gunakan perintah ini dengan mereply pesan pengguna.")
+)
 
 @bot.on(events.NewMessage(pattern="/unadm"))
 async def hapus_admin(event):

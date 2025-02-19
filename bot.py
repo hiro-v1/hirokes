@@ -157,7 +157,9 @@ async def message_handler(event):
     text = event.message.text
     if await check_message(text) or contains_restricted_chars(text):
         await event.delete()
-        await event.respond("⚠️ **Pesan Anda mengandung kata atau karakter terlarang.**")
+        notification_message = await event.respond("⚠️ **Pesan {event.sender_id} Alay Lu.**")
+        await asyncio.sleep(3)
+        await notification_message.delete()
         logging.info(f"🛑 Pesan dari {event.sender_id} dihapus karena melanggar aturan.")
     elif text.lower().startswith("bot"):
         response = ai_response(text)

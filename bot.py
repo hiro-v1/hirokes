@@ -105,7 +105,7 @@ async def matikan_bot(event):
     global bot_aktif
     if event.sender_id != OWNER_ID:
             return await event.respond("❌ Anda tidak memiliki izin untuk menggunakan perintah ini.")    
-   bot_aktif = False
+    bot_aktif = False
     logging.info("❌ Bot dimatikan oleh owner.")
     await event.respond("❌ **Bot telah dimatikan** dan tidak akan merespons perintah.")
 

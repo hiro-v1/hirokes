@@ -158,7 +158,7 @@ async def message_handler(event):
     if await check_message(text) or contains_restricted_chars(text):
         await event.delete()
         notification_message = await event.respond("⚠️ **hapus aja ah Pesannya Alay.**")
-        await asyncio.sleep(3)
+        await asyncio.sleep(5)
         await notification_message.delete()
         logging.info(f"🛑 Pesan dari {event.sender_id} dihapus karena melanggar aturan.")
     elif text.lower().startswith("bot"):
@@ -297,7 +297,7 @@ async def message_handler(event):
     if await check_message(text) or contains_restricted_chars(text):
         await event.delete()
         notification_message = await event.respond("⚠️ **hapus aja ah Pesannya Alay.**")
-        await asyncio.sleep(3)
+        await asyncio.sleep(5)
         await notification_message.delete()
         logging.info(f"🛑 Pesan dari {user_id} dihapus karena mengandung kata terlarang atau karakter spesial.")
 

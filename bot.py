@@ -220,6 +220,63 @@ async def ask_ai(event):
     else:
         await event.respond("💬 **Gunakan perintah ini dengan mengetikkan pertanyaan setelah /ask.**")
 
+@bot.on(events.NewMessage(pattern="/bl"))
+async def tambah_kata_terlarang(event):
+    """Menambah kata terlarang ke dalam database."""
+    global banned_words
+    if event.sender_id != OWNER_ID and event.sender_id not in admin_list:
+        return await event.respond("❌ Anda tidak memiliki izin untuk menggunakan perintah ini.")
+    if event.is_reply:
+        replied_message = await event.get_reply_message()
+        word = replied_message.text
+    else:
+        word = event.message.text.replace("/bl", "").strip()
+    if word:
+        add_banned_word(word)
+        banned_words.add(word)
+        logging.info(f"⚠️ Kata terlarang ditambahkan: {word}")
+        await event.respond(f"⚠️ **Kata terlarang \"{word}\" telah ditambahkan.**")
+    else:
+        await event.respond("❌ Gunakan perintah ini dengan mereply pesan atau mengetikkan kata yang ingin dilarang.")
+
+@bot.on(events.NewMessage(pattern="/inbl"))
+async def tambah_pengguna_blacklist(event):
+    """Menambahkan pengguna ke daftar blacklist."""
+    global banned_users
+    if event.sender_id != OWNER_ID and event.sender_id not in admin_list:
+        return await event.respond("❌ Anda tidak memiliki izin untuk menggunakan perintah ini.")
+    if event.is_reply:
+        replied_user = await event.get_reply_message()
+        user_id = replied_user.sender_id
+        if user_id not in banned_users:
+            add_banned_user(user_id)
+            banned_users.add(user_id)
+            logging.info(f"🚫 Pengguna diblokir: {user_id}")
+            await event.respond(f"🚫 **Pengguna {user_id} telah diblokir.**")
+        else:
+            await event.respond("⚠️ Pengguna ini sudah diblokir.")
+    else:
+        await event.respond("❌ Gunakan perintah ini dengan mereply pesan pengguna.")
+
+@bot.on(events.NewMessage(pattern="/unbl"))
+async def hapus_pengguna_blacklist(event):
+    """Menghapus pengguna dari daftar blacklist."""
+    global banned_users
+    if event.sender_id != OWNER_ID and event.sender_id not in admin_list:
+        return await event.respond("❌ Anda tidak memiliki izin untuk menggunakan perintah ini.")
+    if event.is_reply:
+        replied_user = await event.get_reply_message()
+        user_id = replied_user.sender_id
+        if user_id in banned_users:
+            remove_banned_user(user_id)
+            banned_users.remove(user_id)
+            logging.info(f"❌ Pengguna dihapus dari blacklist: {user_id}")
+            await event.respond(f"❌ **Pengguna {user_id} telah dihapus dari daftar blacklist.**")
+        else:
+            await event.respond("⚠️ Pengguna ini tidak ada dalam daftar blacklist.")
+    else:
+        await event.respond("❌ Gunakan perintah ini dengan mereply pesan pengguna.")
+
 @bot.on(events.NewMessage())
 async def message_handler(event):
     """Memeriksa pesan yang masuk ke grup jika bot dalam kondisi aktif."""
@@ -239,7 +296,9 @@ async def message_handler(event):
     # Periksa apakah pesan mengandung kata terlarang atau karakter spesial
     if await check_message(text) or contains_restricted_chars(text):
         await event.delete()
-        await event.respond("⚠️ **Pesan Anda mengandung kata atau karakter terlarang.**")
+        notification_message = await event.respond("⚠️ **hapus aja ah Pesannya Alay.**")
+        await asyncio.sleep(3)
+        await notification_message.delete()
         logging.info(f"🛑 Pesan dari {user_id} dihapus karena mengandung kata terlarang atau karakter spesial.")
 
 async def main():

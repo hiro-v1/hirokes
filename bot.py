@@ -30,8 +30,12 @@ logging.basicConfig(
     ]
 )
 
-# Inisialisasi bot Telethon dengan connection_pool_size untuk menghindari database lock
-bot = TelegramClient("hirokesbot", API_ID, API_HASH, connection_pool_size=100).start(bot_token=BOT_TOKEN)
+# Hapus sesi yang mungkin terkunci sebelum memulai bot
+if os.path.exists("hirokesbot.session"):
+    os.remove("hirokesbot.session")
+
+bot = TelegramClient("hirokesbot", API_ID, API_HASH).start(bot_token=BOT_TOKEN)
+
 
 # Memuat daftar admin dan pengguna yang diblokir dari database
 admin_list = get_admins()

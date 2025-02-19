@@ -12,6 +12,6 @@ def ai_response(user_input):
     
     if response.status_code == 200:
         result = response.json()
-        return result[0]['generated_text'] if result else "Saya tidak tahu bagaimana menjawab itu."
+        return result[0]['generated_text'] if result else "Saya tidak tahu bagaimana menjawab itu,coba tanya bang @hiro_v1."
     else:
         return "Maaf, saya ga tau bingung tanya bang @hiro_v1 tuh."

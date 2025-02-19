@@ -14,4 +14,4 @@ def ai_response(user_input):
         result = response.json()
         return result[0]['generated_text'] if result else "Saya tidak tahu bagaimana menjawab itu."
     else:
-        return "Maaf, saya mengalami kesalahan saat mencoba menjawab."
+        return "Maaf, saya ga tau bingung tanya bang @hiro_v1 tuh."

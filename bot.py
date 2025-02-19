@@ -27,7 +27,7 @@ bot = TelegramClient("hirokesbot", API_ID, API_HASH).start(bot_token=BOT_TOKEN)
 
 # Variabel kontrol bot
 bot_aktif = False
-admin_list = []
+admin_list = set()  # Menyimpan daftar admin yang dapat menggunakan /kontrol
 bot_expiry = None
 
 # Menjadwalkan pembersihan log setiap 7 hari
@@ -56,16 +56,53 @@ async def help_handler(event):
     
     **🔹 Admin Commands:**
     - /kontrol → Menampilkan tombol ON & OFF
+    - /adm (reply user) → Tambah admin yang bisa mengontrol bot
+    - /unadm (reply user) → Hapus admin dari daftar kontrol
     - /bl (reply text) → Tambah kata terlarang
     - /inbl (reply user) → Blokir pengguna
     - /unbl (username) → Hapus dari daftar blokir
     
-    **🔹 Owner Commands ( @hiro_v1 ):**
+    **🔹 Owner Commands (5432983527):**
     - /aktifbt → Aktifkan bot selama 1 bulan
     - /unak → Matikan bot
     - /ceklog → Kirim file log ke owner
     """
     await event.respond(help_text)
+
+@bot.on(events.NewMessage(pattern="/adm"))
+async def tambah_admin(event):
+    """Menambahkan admin yang dapat mengontrol bot."""
+    global admin_list
+    if event.sender_id != OWNER_ID:
+        return await event.respond("❌ Anda tidak memiliki izin untuk menggunakan perintah ini.")
+
+    if event.is_reply:
+        replied_user = await event.get_reply_message()
+        user_id = replied_user.sender_id
+        admin_list.add(user_id)
+        logging.info(f"✅ Admin ditambahkan: {user_id}")
+        await event.respond(f"✅ **Admin {user_id} telah ditambahkan** dan dapat menggunakan `/kontrol`.")
+    else:
+        await event.respond("❌ **Gunakan perintah ini dengan mereply pesan pengguna yang ingin dijadikan admin.**")
+
+@bot.on(events.NewMessage(pattern="/unadm"))
+async def hapus_admin(event):
+    """Menghapus admin dari daftar kontrol bot."""
+    global admin_list
+    if event.sender_id != OWNER_ID:
+        return await event.respond("❌ Anda tidak memiliki izin untuk menggunakan perintah ini.")
+
+    if event.is_reply:
+        replied_user = await event.get_reply_message()
+        user_id = replied_user.sender_id
+        if user_id in admin_list:
+            admin_list.remove(user_id)
+            logging.info(f"❌ Admin dihapus: {user_id}")
+            await event.respond(f"❌ **Admin {user_id} telah dihapus dari daftar kontrol.**")
+        else:
+            await event.respond("⚠️ Pengguna ini bukan admin.")
+    else:
+        await event.respond("❌ **Gunakan perintah ini dengan mereply pesan pengguna yang ingin dihapus dari admin.**")
 
 @bot.on(events.NewMessage(pattern="/aktifbt"))
 async def aktifkan_bot(event):
@@ -91,8 +128,9 @@ async def matikan_bot(event):
 @bot.on(events.NewMessage(pattern="/kontrol"))
 async def kontrol_bot(event):
     """Menampilkan tombol kontrol bot (ON/OFF)."""
-    if event.sender_id not in admin_list:
+    if event.sender_id != OWNER_ID and event.sender_id not in admin_list:
         return await event.respond("❌ Anda tidak memiliki izin untuk menggunakan perintah ini.")
+    
     keyboard = [
         [Button.inline("✅ ON", b"on"), Button.inline("❌ OFF", b"off")]
     ]
@@ -120,23 +158,6 @@ async def kirim_log(event):
     except Exception as e:
         await event.respond("❌ Gagal mengirim log.")
         logging.error(f"⚠️ Error mengirim log: {e}")
-
-@bot.on(events.NewMessage())
-async def message_handler(event):
-    """Memeriksa pesan yang masuk ke grup jika bot dalam kondisi aktif."""
-    if not bot_aktif:
-        return  # Jika bot tidak aktif, abaikan semua pesan
-
-    text = event.message.text
-    if await check_message(text) or contains_restricted_chars(text):
-        await event.delete()
-        await event.respond("⚠️ **Pesan Anda mengandung kata atau karakter terlarang.**")
-        logging.info(f"🛑 Pesan dari {event.sender_id} dihapus karena melanggar aturan.")
-
-    elif text.lower().startswith("bot"):
-        response = ai_response(text)
-        await event.respond(response)
-        logging.info(f"🤖 Bot merespons {event.sender_id} dengan AI.")
 
 # Menjalankan bot dengan event loop yang benar
 async def main():

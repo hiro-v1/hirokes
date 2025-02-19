@@ -320,7 +320,7 @@ async def message_handler(event):
     # Deteksi penyebutan username dengan @(username)
     if "@" in text:
         mentioned_user = text.split("@")[1].split()[0]
-        if not await bot.get_participants(event.chat_id, filter=telethon.tl.types.ChannelParticipantsSearch(mentioned_user)):
+        if not await bot.get_participants(event.chat_id, filter=ChannelParticipantsSearch(mentioned_user)):
             await event.delete()
             if user_id not in mention_warnings:
                 mention_warnings[user_id] = 0

@@ -187,7 +187,7 @@ async def tambah_admin(event):
             await event.respond("⚠️ Pengguna ini sudah menjadi admin.")
     else:
         await event.respond("❌ Gunakan perintah ini dengan mereply pesan pengguna.")
-)
+
 
 @bot.on(events.NewMessage(pattern="/unadm"))
 async def hapus_admin(event):

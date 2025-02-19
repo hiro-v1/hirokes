@@ -70,3 +70,25 @@ def remove_banned_word(word):
 def get_banned_words():
     """Mengambil daftar kata terlarang."""
     return {entry["word"] for entry in banned_words.find({}, {"word": 1, "_id": 0})}
+# Add a new collection for user warnings
+user_warnings = db["user_warnings"]
+
+# Function to add a warning for a user
+def add_warning(user_id):
+    """Menambahkan peringatan untuk pengguna."""
+    warning = user_warnings.find_one({"user_id": user_id})
+    if warning:
+        user_warnings.update_one({"user_id": user_id}, {"$inc": {"warnings": 1}})
+    else:
+        user_warnings.insert_one({"user_id": user_id, "warnings": 1})
+
+# Function to get the number of warnings for a user
+def get_warnings(user_id):
+    """Mengambil jumlah peringatan untuk pengguna."""
+    warning = user_warnings.find_one({"user_id": user_id})
+    return warning["warnings"] if warning else 0
+
+# Function to reset warnings for a user
+def reset_warnings(user_id):
+    """Mereset jumlah peringatan untuk pengguna."""
+    user_warnings.delete_one({"user_id": user_id})

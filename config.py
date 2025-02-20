@@ -8,5 +8,5 @@ API_HASH = os.getenv("API_HASH")
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 OWNER_ID = 5432983527  # Pemilik bot tetap
 MONGO_URI = os.getenv("MONGO_URI")
-HUGGINGFACE_MODEL = os.getenv("HUGGINGFACE_MODEL", "facebook/blenderbot-400M-distill")
+HUGGINGFACE_MODEL = os.getenv("HUGGINGFACE_MODEL", "cahya/gpt2-small-indonesian")
 HUGGINGFACE_API_KEY = os.getenv("HUGGINGFACE_API_KEY")

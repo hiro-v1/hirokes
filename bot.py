@@ -227,6 +227,30 @@ async def hapus_admin(event):
     else:
         await event.respond("❌ Gunakan perintah ini dengan mereply pesan pengguna.")
 
+@bot.on(events.NewMessage())
+async def auto_reply(event):
+    """Bot akan otomatis merespons pesan pengguna tanpa harus pakai /ask."""
+    if not bot_aktif:
+        return  # Jika bot mati, jangan balas pesan
+    
+    user_id = event.sender_id
+    text = event.message.text.lower()
+
+    # Periksa apakah pesan mengandung kata terlarang
+    if await check_message(text) or contains_restricted_chars(text):
+        await event.delete()
+        logging.info(f"🛑 Pesan dari {user_id} dihapus karena melanggar aturan.")
+        return
+
+    # Gunakan AI untuk mendapatkan respons
+    response = simple_ai_response(text)
+
+    # Jika bot tidak memahami, gunakan respons default
+    if response in ["", None, " "]:
+        response = "Maksudnya?"
+
+    await event.reply(response)
+
 @bot.on(events.NewMessage(pattern="/ask"))
 async def ask_ai(event):
     """Menggunakan AI untuk menjawab pertanyaan pengguna."""

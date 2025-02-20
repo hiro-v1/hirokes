@@ -2,11 +2,11 @@ import requests
 import json
 from config import HUGGINGFACE_MODEL, HUGGINGFACE_API_KEY
 
+API_URL = f"https://api-inference.huggingface.co/models/{HUGGINGFACE_MODEL}"
+headers = {"Authorization": f"Bearer {HUGGINGFACE_API_KEY}"}
+
 def ai_response(user_input):
     """Menggunakan API Hugging Face untuk merespons pengguna dalam bahasa Indonesia."""
-    API_URL = f"https://api-inference.huggingface.co/models/{HUGGINGFACE_MODEL}"
-    headers = {"Authorization": f"Bearer {HUGGINGFACE_API_KEY}"}
-    
     payload = {
         "inputs": user_input,
         "parameters": {
@@ -33,3 +33,15 @@ def ai_response(user_input):
     
     except requests.exceptions.RequestException as e:
         return f"⚠️ Terjadi kesalahan jaringan: {e}"
+        
+def simple_ai_response(user_input):
+    """Menghasilkan respons singkat untuk percakapan umum."""
+    payload = {"inputs": user_input}
+    response = requests.post(API_URL, headers=HEADERS, json=payload)
+    
+    if response.status_code == 200:
+        result = response.json()
+        response_text = result[0]['generated_text'].split(".")[0] if result else None
+        return response_text if response_text else "Maksudnya?"
+    else:
+        return "Maksudnya?"

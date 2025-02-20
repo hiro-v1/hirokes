@@ -44,7 +44,7 @@ banned_words_set = get_banned_words()
 
 def is_admin_or_owner(user_id):
     return user_id == OWNER_ID or user_id in admin_list
-    
+   
 # Variabel kontrol bot
 bot_aktif = False
 bot_expiry = None
@@ -259,40 +259,49 @@ async def tambah_kata_terlarang(event):
 @bot.on(events.NewMessage(pattern="/inbl"))
 async def tambah_pengguna_blacklist(event):
     """Menambahkan pengguna ke daftar blacklist."""
-    global banned_users_set
+    global banned_users
     if event.sender_id != OWNER_ID and event.sender_id not in admin_list:
         return await event.respond("❌ Anda tidak memiliki izin untuk menggunakan perintah ini.")
+
     if event.is_reply:
         replied_user = await event.get_reply_message()
         user_id = replied_user.sender_id
-        if user_id not in banned_users_set:
-            add_banned_user(user_id)
-            banned_users_set.add(user_id)
-            logging.info(f"🚫 Pengguna diblokir: {user_id}")
-            await event.respond(f"🚫 **Pengguna {user_id} telah diblokir.**")
-        else:
-            await event.respond("⚠️ Pengguna ini sudah diblokir.")
+
+        if user_id in banned_users:
+            return await event.respond("⚠️ Pengguna ini sudah diblokir.")
+
+        add_banned_user(user_id)  # Tambahkan ke database
+        banned_users = get_banned_users()  # Perbarui daftar blokir dari database
+
+        logging.info(f"🚫 Pengguna diblokir: {user_id}")
+        await event.respond(f"🚫 **Pengguna {user_id} telah diblokir.**")
     else:
         await event.respond("❌ Gunakan perintah ini dengan mereply pesan pengguna.")
+
 
 @bot.on(events.NewMessage(pattern="/unbl"))
 async def hapus_pengguna_blacklist(event):
     """Menghapus pengguna dari daftar blacklist."""
-    global banned_users_set
+    global banned_users
+
     if event.sender_id != OWNER_ID and event.sender_id not in admin_list:
         return await event.respond("❌ Anda tidak memiliki izin untuk menggunakan perintah ini.")
+
     if event.is_reply:
         replied_user = await event.get_reply_message()
         user_id = replied_user.sender_id
-        if user_id in banned_users_set:
-            remove_banned_user(user_id)
-            banned_users_set.remove(user_id)
-            logging.info(f"❌ Pengguna dihapus dari blacklist: {user_id}")
-            await event.respond(f"❌ **Pengguna {user_id} telah dihapus dari daftar blacklist.**")
-        else:
-            await event.respond("⚠️ Pengguna ini tidak ada dalam daftar blacklist.")
+
+        if user_id not in banned_users:
+            return await event.respond("⚠️ Pengguna ini tidak ada dalam daftar blacklist.")
+
+        remove_banned_user(user_id)  # Hapus dari database
+        banned_users = get_banned_users()  # Perbarui daftar blacklist dari database
+
+        logging.info(f"❌ Pengguna dihapus dari blacklist: {user_id}")
+        await event.respond(f"❌ **Pengguna {user_id} telah dihapus dari daftar blacklist.**")
     else:
         await event.respond("❌ Gunakan perintah ini dengan mereply pesan pengguna.")
+
 
 # Tambahkan variabel untuk menyimpan jumlah pelanggaran pengguna
 mention_warnings = {}

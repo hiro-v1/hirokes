@@ -60,36 +60,38 @@ async def run_schedule():
         await asyncio.sleep(60)
         
 async def sync_admin_groups():
-    """Memeriksa semua grup tempat bot menjadi admin dan menyimpannya ke database."""
-    async for dialog in bot.iter_dialogs():
-        if dialog.is_group or dialog.is_channel:
-            try:
-                chat = await bot.get_entity(dialog.id)
-                permissions = await bot.get_permissions(chat, bot.me)
-                
-                if permissions.is_admin:  # Cek apakah bot adalah admin di grup ini
-                    add_admin_group(chat.id, chat.title)
-                    logging.info(f"✅ Bot sudah menjadi admin di: {chat.title} ({chat.id})")
+    """Menyinkronkan grup di mana bot menjadi admin menggunakan API yang didukung."""
+    logging.info("🚀 Bot sedang memeriksa grup tempatnya menjadi admin...")
 
-            except Exception as e:
-                logging.error(f"❌ Gagal memeriksa grup {dialog.name}: {e}")
+    try:
+        dialogs = await bot.get_dialogs()
+        for dialog in dialogs:
+            if dialog.is_group or dialog.is_channel:
+                try:
+                    chat = await bot.get_entity(dialog.id)
+                    bot_member = await bot.get_permissions(chat, bot.me)
+
+                    if bot_member.is_admin:
+                        add_admin_group(chat.id, chat.title)
+                except Exception as e:
+                    logging.error(f"⚠️ Gagal memeriksa grup {dialog.name}: {e}")
+    except Exception as e:
+        logging.error(f"❌ Gagal mengambil daftar grup: {e}")
 
 @bot.on(events.ChatAction)
 async def track_admin_status(event):
     """Memantau jika bot menjadi admin atau dikeluarkan dari grup."""
     chat = await event.get_chat()
 
-    # Jika bot baru ditambahkan atau dinaikkan menjadi admin
-    if event.new_participant and event.new_participant.bot and event.new_participant.id == bot.me.id:
+    # Jika bot ditambahkan sebagai admin
+    if event.user_added and event.added_by and event.user_id == bot.me.id:
         add_admin_group(chat.id, chat.title)
-        logging.info(f"📌 Bot ditambahkan atau dinaikkan sebagai admin di grup: {chat.title} ({chat.id})")
+        logging.info(f"📌 Bot menjadi admin di grup: {chat.title} ({chat.id})")
 
-    # Jika bot dikeluarkan atau diturunkan dari admin
-    if event.user_left or event.user_kicked:
-        if event.user_id == bot.me.id:
-            remove_admin_group(chat.id)
-            logging.info(f"❌ Bot dikeluarkan atau diturunkan dari grup: {chat.title} ({chat.id})")
-
+    # Jika bot dikeluarkan dari grup
+    elif event.user_kicked and event.kicked_by and event.user_id == bot.me.id:
+        remove_admin_group(chat.id)
+        logging.info(f"❌ Bot dikeluarkan dari grup: {chat.title} ({chat.id})")
 
 @bot.on(events.NewMessage(pattern="/start"))
 async def start_handler(event):
@@ -328,33 +330,47 @@ async def hapus_pengguna_blacklist(event):
 
 @bot.on(events.NewMessage(pattern="/bc"))
 async def broadcast_message(event):
-    """Mengirim pesan ke semua grup di mana bot adalah admin dan menghapusnya setelah 30 detik."""
+    """Mengirim pesan ke semua grup tempat bot menjadi admin dan menghapusnya setelah 30 detik."""
     if event.sender_id != OWNER_ID:
         return await event.respond("❌ Anda tidak memiliki izin untuk menggunakan perintah ini.")
 
     if not event.is_reply:
         return await event.respond("⚠️ **Gunakan perintah ini dengan mereply pesan yang ingin disiarkan.**")
-    
+
     replied_message = await event.get_reply_message()
-    groups = get_admin_groups()
+    groups = get_admin_groups()  # Ambil daftar grup dari database
 
     if not groups:
         return await event.respond("📭 **Bot tidak menjadi admin di grup mana pun.**")
 
-    message = f"📢 **Pesan Siaran dari {event.sender.first_name}:**\n\n{replied_message.text}"
+    message_text = f"📢 **Pesan Siaran dari {event.sender.first_name}:**\n\n{replied_message.text}"
+    success_count = 0
+    failed_groups = []
 
     for group in groups:
         try:
-            group_name = group.get("chat_name", "Grup Tidak Diketahui")  # Pastikan tidak error jika nama kosong
-            sent_message = await bot.send_message(group["chat_id"], f"**📢 Broadcast ke {group_name}:**\n\n{message}")
-            
-            await asyncio.sleep(1)  # Hindari rate limit
-            await asyncio.sleep(60)  # Hapus pesan setelah 30 detik
-            await bot.delete_messages(group["chat_id"], sent_message.id)
+            # Cek apakah bot masih admin di grup ini
+            chat = await bot.get_entity(group["chat_id"])
+            bot_member = await bot.get_permissions(chat, bot.me)
+
+            if bot_member.is_admin:
+                sent_message = await bot.send_message(group["chat_id"], message_text)
+                success_count += 1
+
+                await asyncio.sleep(1)  # Hindari rate limit
+                await asyncio.sleep(60)  # Tunggu 30 detik sebelum menghapus
+                await bot.delete_messages(group["chat_id"], sent_message.id)
+            else:
+                failed_groups.append(f"{group['chat_name']} (ID: {group['chat_id']}) - Bot bukan admin")
         except Exception as e:
+            failed_groups.append(f"{group['chat_name']} (ID: {group['chat_id']}) - Error: {e}")
             logging.error(f"⚠️ Gagal mengirim broadcast ke {group['chat_name']} ({group['chat_id']}): {e}")
 
-    await event.respond("✅ **Pesan telah dikirim ke semua grup admin dan akan dihapus dalam 30 detik.**")
+    report_message = f"✅ **Broadcast selesai!**\n📨 Berhasil dikirim ke **{success_count}** grup."
+    if failed_groups:
+        report_message += "\n⚠️ Gagal dikirim ke:\n" + "\n".join(failed_groups)
+
+    await event.respond(report_message)
 
 
 @bot.on(events.NewMessage(pattern="/gc"))

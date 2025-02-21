@@ -38,7 +38,6 @@ if os.path.exists("hirokesbot.session"):
     os.remove("hirokesbot.session")
 
 bot = TelegramClient("hirokesbot", API_ID, API_HASH).start(bot_token=BOT_TOKEN)
-bot_info = await bot.get_me()
 
 @bot.on(events.ChatAction)
 async def track_admin_status(event):
@@ -465,9 +464,9 @@ async def message_handler(event):
     await event.reply(response)
 
 async def main():
-    logging.info("🚀 Bot sedang memeriksa grup tempatnya menjadi admin...")
     global bot_info
     bot_info = await bot.get_me()  # Fetch bot's information
+    logging.info("🚀 Bot sedang memeriksa grup tempatnya menjadi admin...")
     await sync_admin_groups()  # Sinkronisasi grup admin saat bot dimulai
     logging.info("✅ Sinkronisasi grup admin selesai!")
     

@@ -13,7 +13,8 @@ from modules.database import (
     add_admin, remove_admin, get_admins, 
     add_banned_user, remove_banned_user, get_banned_users,
     add_banned_word, remove_banned_word, get_banned_words,
-    banned_words, banned_users, get_admin_groups
+    banned_words, banned_users, add_admin_group,
+    remove_admin_group, get_admin_groups
 )
 from modules.log_cleaner import clean_logs
 
@@ -57,6 +58,23 @@ async def run_schedule():
     while True:
         schedule.run_pending()
         await asyncio.sleep(60)
+
+@bot.on(events.ChatAction)
+async def track_admin_status(event):
+    """Memantau jika bot menjadi admin atau dikeluarkan dari grup."""
+    chat = await event.get_chat()
+
+    # Jika bot baru ditambahkan atau dinaikkan menjadi admin
+    if event.new_participant and event.new_participant.bot and event.new_participant.id == bot.me.id:
+        add_admin_group(chat.id, chat.title)
+        logging.info(f"📌 Bot ditambahkan atau dinaikkan sebagai admin di grup: {chat.title} ({chat.id})")
+
+    # Jika bot dikeluarkan atau diturunkan dari admin
+    if event.user_left or event.user_kicked:
+        if event.user_id == bot.me.id:
+            remove_admin_group(chat.id)
+            logging.info(f"❌ Bot dikeluarkan atau diturunkan dari grup: {chat.title} ({chat.id})")
+
 
 @bot.on(events.NewMessage(pattern="/start"))
 async def start_handler(event):
@@ -294,33 +312,35 @@ async def hapus_pengguna_blacklist(event):
         await event.respond("❌ Gunakan perintah ini dengan mereply pesan pengguna.")
 
 @bot.on(events.NewMessage(pattern="/bc"))
-async def broadcast(event):
-    """Mengirim pesan ke semua grup tempat bot menjadi admin, lalu menghapusnya setelah 30 detik."""
+async def broadcast_message(event):
+    """Mengirim pesan ke semua grup di mana bot adalah admin dan menghapusnya setelah 30 detik."""
     if event.sender_id != OWNER_ID:
         return await event.respond("❌ Anda tidak memiliki izin untuk menggunakan perintah ini.")
 
-    # Ambil teks broadcast
-    text = event.message.text.replace("/bc", "").strip()
-    if not text:
-        return await event.respond("⚠️ Gunakan perintah ini dengan mengetikkan pesan setelah /bc.")
+    if not event.is_reply:
+        return await event.respond("⚠️ **Gunakan perintah ini dengan mereply pesan yang ingin disiarkan.**")
+    
+    replied_message = await event.get_reply_message()
+    groups = get_admin_groups()
 
-    # Ambil daftar grup di mana bot adalah admin
-    async for dialog in bot.iter_dialogs():
-        if dialog.is_group or dialog.is_channel:
-            try:
-                chat = await bot.get_entity(dialog.id)
-                permissions = await bot.get_permissions(chat, bot.me)
-                
-                if permissions.is_admin:  # Pastikan bot adalah admin di grup ini
-                    message = await bot.send_message(chat, f"📢 **Broadcast:** {text}")
+    if not groups:
+        return await event.respond("📭 **Bot tidak menjadi admin di grup mana pun.**")
 
-                    # Hapus pesan setelah 30 detik
-                    await asyncio.sleep(30)
-                    await message.delete()
-            except Exception as e:
-                logging.error(f"❌ Gagal mengirim broadcast ke {dialog.name}: {e}")
+    message = f"📢 **Pesan Siaran dari {event.sender.first_name}:**\n\n{replied_message.text}"
 
-    await event.respond("✅ **Pesan broadcast telah dikirim ke semua grup.**")
+    for group in groups:
+        try:
+            group_name = group.get("chat_name", "Grup Tidak Diketahui")  # Pastikan tidak error jika nama kosong
+            sent_message = await bot.send_message(group["chat_id"], f"**📢 Broadcast ke {group_name}:**\n\n{message}")
+            
+            await asyncio.sleep(1)  # Hindari rate limit
+            await asyncio.sleep(60)  # Hapus pesan setelah 30 detik
+            await bot.delete_messages(group["chat_id"], sent_message.id)
+        except Exception as e:
+            logging.error(f"⚠️ Gagal mengirim broadcast ke {group['chat_name']} ({group['chat_id']}): {e}")
+
+    await event.respond("✅ **Pesan telah dikirim ke semua grup admin dan akan dihapus dalam 30 detik.**")
+
 
 @bot.on(events.NewMessage(pattern="/gc"))
 async def list_admin_groups(event):
@@ -329,15 +349,17 @@ async def list_admin_groups(event):
         return await event.respond("❌ Anda tidak memiliki izin untuk menggunakan perintah ini.")
     
     groups = get_admin_groups()
-    
+
     if not groups:
         return await event.respond("📭 **Bot tidak menjadi admin di grup mana pun.**")
 
     message = "📋 **Daftar Grup Admin:**\n"
     for idx, group in enumerate(groups, start=1):
-        message += f"{idx}. {group['chat_name']} (ID: `{group['chat_id']}`)\n"
-    
+        group_name = group.get("chat_name", "Tidak diketahui")  # Hindari error jika nama tidak tersedia
+        message += f"{idx}. {group_name} (ID: `{group['chat_id']}`)\n"
+
     await event.respond(message)
+
 
 @bot.on(events.NewMessage(pattern="/bc"))
 async def broadcast_message(event):

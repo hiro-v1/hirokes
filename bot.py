@@ -42,17 +42,19 @@ bot = TelegramClient("hirokesbot", API_ID, API_HASH).start(bot_token=BOT_TOKEN)
 @bot.on(events.ChatAction)
 async def track_admin_status(event):
     """Memantau jika bot menjadi admin atau dikeluarkan dari grup."""
+    global bot_info
     chat = await event.get_chat()
 
     # Jika bot ditambahkan sebagai admin
-    if event.user_added and event.added_by and event.user_id == bot_info.id:
+    if event.new_participant and event.new_participant.bot and event.new_participant.id == bot_info.id:
         add_admin_group(chat.id, chat.title)
         logging.info(f"📌 Bot menjadi admin di grup: {chat.title} ({chat.id})")
 
     # Jika bot dikeluarkan dari grup
-    elif event.user_kicked and event.kicked_by and event.user_id == bot_info.id:
+    elif event.user_id == bot_info.id and event.user_left:
         remove_admin_group(chat.id)
         logging.info(f"❌ Bot dikeluarkan dari grup: {chat.title} ({chat.id})")
+
         
 # Memuat daftar admin dan pengguna yang diblokir dari database
 admin_list = get_admins()
@@ -79,17 +81,15 @@ async def sync_admin_groups():
     """Memeriksa dan memperbarui daftar grup di mana bot menjadi admin."""
     logging.info("🚀 Memeriksa grup tempat bot menjadi admin...")
 
-    # Ambil daftar grup dari database
     groups = get_admin_groups()
     updated_groups = []
 
     for group in groups:
         try:
             chat = await bot.get_entity(group["chat_id"])
-            admins = await bot.get_participants(chat, filter=ChannelParticipantsAdmins)
+            permissions = await bot.get_permissions(chat, bot.me)
 
-            # Periksa apakah bot ada dalam daftar admin
-            if any(admin.id == bot.me.id for admin in admins):
+            if permissions and permissions.is_admin:
                 updated_groups.append({"chat_id": chat.id, "chat_name": chat.title})
             else:
                 logging.warning(f"⚠️ Bot bukan lagi admin di grup: {chat.title} ({chat.id})")
@@ -97,6 +97,7 @@ async def sync_admin_groups():
 
         except Exception as e:
             logging.error(f"❌ Gagal memeriksa grup {group['chat_name']} ({group['chat_id']}): {e}")
+            remove_admin_group(group["chat_id"])  # Hapus dari database jika gagal diakses
 
     logging.info(f"✅ Sinkronisasi selesai! Bot tetap menjadi admin di {len(updated_groups)} grup.")
 
@@ -374,17 +375,18 @@ async def broadcast_message(event):
     for group in groups:
         try:
             chat = await bot.get_entity(group["chat_id"])
-            admins = await bot.get_participants(chat, filter=ChannelParticipantsAdmins)
+            permissions = await bot.get_permissions(chat, bot.me)
 
-            if any(admin.id == bot.me.id for admin in admins):
+            if permissions and permissions.is_admin:
                 sent_message = await bot.send_message(group["chat_id"], message_text)
                 success_count += 1
 
                 await asyncio.sleep(1)  # Hindari rate limit
-                await asyncio.sleep(60)  # Tunggu 30 detik sebelum menghapus
+                await asyncio.sleep(30)  # Hapus setelah 30 detik
                 await bot.delete_messages(group["chat_id"], sent_message.id)
             else:
                 failed_groups.append(f"{group['chat_name']} (ID: {group['chat_id']}) - Bot bukan admin")
+                remove_admin_group(group["chat_id"])  # Hapus dari database jika bot bukan admin
         except Exception as e:
             failed_groups.append(f"{group['chat_name']} (ID: {group['chat_id']}) - Error: {e}")
             logging.error(f"⚠️ Gagal mengirim broadcast ke {group['chat_name']} ({group['chat_id']}): {e}")
@@ -395,7 +397,6 @@ async def broadcast_message(event):
 
     await event.respond(report_message)
 
-
 # Tambahkan variabel untuk menyimpan jumlah pelanggaran pengguna
 mention_warnings = {}
 
@@ -403,13 +404,18 @@ mention_warnings = {}
 async def message_handler(event):
     """Memeriksa pesan masuk, menangani blacklist, dan membalas pesan dengan AI."""
     global banned_users
+    banned_users = get_banned_users()
     
     if not bot_aktif:
         return  # Jika bot tidak aktif, abaikan semua pesan
 
     user_id = event.sender_id
     text = event.message.text.lower()
-
+    
+    # Skip deletion if the user is an admin or the owner
+    if is_admin_or_owner(user_id):
+        return
+        
     # Jika pengguna dalam daftar blokir, hapus pesan mereka
     if user_id in banned_users:
         await event.delete()
@@ -420,7 +426,7 @@ async def message_handler(event):
     if await check_message(text) or contains_restricted_chars(text):
         await event.delete()
         notification_message = await event.respond("⚠️ **hapus aja ah Alay.**")
-        await asyncio.sleep(3)
+        await asyncio.sleep(5)
         await notification_message.delete()
         logging.info(f"🛑 Pesan dari {user_id} dihapus karena mengandung kata terlarang.")
         return
@@ -448,9 +454,19 @@ async def message_handler(event):
                 await asyncio.sleep(5)
                 await warning_message.delete()
                 return
-        except Exception:
-            pass
-
+            
+    # Periksa apakah pesan mengandung kata terlarang atau karakter spesial
+    if await check_message(text) or contains_restricted_chars(text):
+        await event.delete()
+        notification_message = await event.respond("⚠️ **hapus aja ah Pesannya Alay.**")
+        await asyncio.sleep(5)
+        await notification_message.delete()
+        logging.info(f"🛑 Pesan dari {user_id} dihapus karena mengandung kata terlarang atau karakter spesial.")
+    elif text.lower().startswith("bot"):
+        response = ai_response(text)
+        await event.respond(response)
+        logging.info(f"🤖 Bot merespons {event.sender_id} dengan AI.")
+        
     # **Respons AI Otomatis**
     if text.startswith("/ask"):
         query = text.replace("/ask", "").strip()

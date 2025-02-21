@@ -58,6 +58,21 @@ async def run_schedule():
     while True:
         schedule.run_pending()
         await asyncio.sleep(60)
+        
+async def sync_admin_groups():
+    """Memeriksa semua grup tempat bot menjadi admin dan menyimpannya ke database."""
+    async for dialog in bot.iter_dialogs():
+        if dialog.is_group or dialog.is_channel:
+            try:
+                chat = await bot.get_entity(dialog.id)
+                permissions = await bot.get_permissions(chat, bot.me)
+                
+                if permissions.is_admin:  # Cek apakah bot adalah admin di grup ini
+                    add_admin_group(chat.id, chat.title)
+                    logging.info(f"✅ Bot sudah menjadi admin di: {chat.title} ({chat.id})")
+
+            except Exception as e:
+                logging.error(f"❌ Gagal memeriksa grup {dialog.name}: {e}")
 
 @bot.on(events.ChatAction)
 async def track_admin_status(event):
@@ -347,47 +362,61 @@ async def list_admin_groups(event):
     """Menampilkan daftar grup yang menjadikan bot sebagai admin."""
     if event.sender_id != OWNER_ID:
         return await event.respond("❌ Anda tidak memiliki izin untuk menggunakan perintah ini.")
-    
+
     groups = get_admin_groups()
 
     if not groups:
-        return await event.respond("📭 **Bot tidak menjadi admin di grup mana pun.**")
+        return await event.respond("📭 **Bot tidak menjadi admin di grup mana pun atau masih dalam proses sinkronisasi.**\n\n🔄 Coba lagi dalam beberapa detik.")
 
     message = "📋 **Daftar Grup Admin:**\n"
     for idx, group in enumerate(groups, start=1):
-        group_name = group.get("chat_name", "Tidak diketahui")  # Hindari error jika nama tidak tersedia
+        group_name = group.get("chat_name", "Grup Tanpa Nama")  # Hindari error jika nama tidak ada
         message += f"{idx}. {group_name} (ID: `{group['chat_id']}`)\n"
 
     await event.respond(message)
 
 
+
 @bot.on(events.NewMessage(pattern="/bc"))
 async def broadcast_message(event):
-    """Mengirim pesan ke semua grup di mana bot adalah admin dan menghapusnya setelah 30 detik."""
+    """Mengirim pesan ke semua grup tempat bot menjadi admin dan menghapusnya setelah 30 detik."""
     if event.sender_id != OWNER_ID:
         return await event.respond("❌ Anda tidak memiliki izin untuk menggunakan perintah ini.")
 
+    # Pastikan perintah digunakan dengan membalas pesan
     if not event.is_reply:
         return await event.respond("⚠️ **Gunakan perintah ini dengan mereply pesan yang ingin disiarkan.**")
-    
+
     replied_message = await event.get_reply_message()
-    groups = get_admin_groups()
+    groups = get_admin_groups()  # Ambil daftar grup dari database
 
     if not groups:
         return await event.respond("📭 **Bot tidak menjadi admin di grup mana pun.**")
 
     message = f"📢 **Pesan Siaran dari {event.sender.first_name}:**\n\n{replied_message.text}"
+    success_count = 0
+    failed_groups = []
 
     for group in groups:
         try:
             sent_message = await bot.send_message(group["chat_id"], message)
-            await asyncio.sleep(1)  # Hindari rate limit
-            await asyncio.sleep(60)  # Hapus pesan setelah 30 detik
+            success_count += 1
+            await asyncio.sleep(1)  # Penundaan untuk menghindari rate limit
+
+            # Hapus pesan setelah 30 detik
+            await asyncio.sleep(60)
             await bot.delete_messages(group["chat_id"], sent_message.id)
         except Exception as e:
+            failed_groups.append(f"{group['chat_name']} (ID: {group['chat_id']})")
             logging.error(f"⚠️ Gagal mengirim broadcast ke {group['chat_name']} ({group['chat_id']}): {e}")
 
-    await event.respond("✅ **Pesan telah dikirim ke semua grup admin dan akan dihapus dalam 30 detik.**")
+    # Kirim laporan ke admin setelah selesai
+    report_message = f"✅ **Broadcast selesai!**\n\n📨 Berhasil dikirim ke **{success_count}** grup."
+    if failed_groups:
+        report_message += "\n⚠️ Gagal dikirim ke:\n" + "\n".join(failed_groups)
+
+    await event.respond(report_message)
+
 # Tambahkan variabel untuk menyimpan jumlah pelanggaran pengguna
 mention_warnings = {}
 
@@ -454,8 +483,13 @@ async def message_handler(event):
     await event.reply(response)
 
 async def main():
+    logging.info("🚀 Bot sedang memeriksa grup tempatnya menjadi admin...")
+    await sync_admin_groups()  # Sinkronisasi grup admin saat bot dimulai
+    logging.info("✅ Sinkronisasi grup admin selesai!")
+    
     logging.info("🚀 Bot telah berjalan...")
     await asyncio.gather(bot.run_until_disconnected(), run_schedule())
+
 
 if __name__ == "__main__":
     loop = asyncio.get_event_loop()

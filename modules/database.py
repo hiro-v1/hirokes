@@ -9,6 +9,7 @@ db = client["hirokesbot"]
 banned_words = db["banned_words"]
 admin_list = db["admin_list"]
 banned_users = db["banned_users"]
+admin_groups = db["admin_groups"]  # ➕ Koleksi untuk menyimpan daftar grup admin
 
 # ID Pemilik Bot (HARDCODE agar selalu bisa mengakses kontrol)
 OWNER_ID = 5432983527
@@ -70,10 +71,24 @@ def remove_banned_word(word):
 def get_banned_words():
     """Mengambil daftar kata terlarang."""
     return {entry["word"] for entry in banned_words.find({}, {"word": 1, "_id": 0})}
-# Add a new collection for user warnings
+
+### ✅ Fungsi untuk Mengatur Daftar Grup Admin ###
+def add_admin_group(chat_id, chat_name):
+    """Menambahkan grup ke daftar di mana bot adalah admin."""
+    if not admin_groups.find_one({"chat_id": chat_id}):
+        admin_groups.insert_one({"chat_id": chat_id, "chat_name": chat_name})
+
+def remove_admin_group(chat_id):
+    """Menghapus grup dari daftar admin jika bot keluar atau dihapus sebagai admin."""
+    admin_groups.delete_one({"chat_id": chat_id})
+
+def get_admin_groups():
+    """Mengambil daftar grup di mana bot menjadi admin."""
+    return list(admin_groups.find({}, {"chat_id": 1, "chat_name": 1, "_id": 0}))
+
+### ✅ Fungsi untuk Peringatan Pengguna ###
 user_warnings = db["user_warnings"]
 
-# Function to add a warning for a user
 def add_warning(user_id):
     """Menambahkan peringatan untuk pengguna."""
     warning = user_warnings.find_one({"user_id": user_id})
@@ -82,13 +97,11 @@ def add_warning(user_id):
     else:
         user_warnings.insert_one({"user_id": user_id, "warnings": 1})
 
-# Function to get the number of warnings for a user
 def get_warnings(user_id):
     """Mengambil jumlah peringatan untuk pengguna."""
     warning = user_warnings.find_one({"user_id": user_id})
     return warning["warnings"] if warning else 0
 
-# Function to reset warnings for a user
 def reset_warnings(user_id):
     """Mereset jumlah peringatan untuk pengguna."""
     user_warnings.delete_one({"user_id": user_id})

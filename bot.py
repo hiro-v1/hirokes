@@ -402,6 +402,8 @@ mention_warnings = {}
 @bot.on(events.NewMessage())
 async def message_handler(event):
     """Memeriksa pesan masuk, menangani blacklist, dan membalas pesan dengan AI."""
+    global banned_users
+    
     if not bot_aktif:
         return  # Jika bot tidak aktif, abaikan semua pesan
 

@@ -293,6 +293,62 @@ async def hapus_pengguna_blacklist(event):
     else:
         await event.respond("❌ Gunakan perintah ini dengan mereply pesan pengguna.")
 
+@bot.on(events.NewMessage(pattern="/bc"))
+async def broadcast(event):
+    """Mengirim pesan ke semua grup tempat bot menjadi admin, lalu menghapusnya setelah 30 detik."""
+    if event.sender_id != OWNER_ID:
+        return await event.respond("❌ Anda tidak memiliki izin untuk menggunakan perintah ini.")
+
+    # Ambil teks broadcast
+    text = event.message.text.replace("/bc", "").strip()
+    if not text:
+        return await event.respond("⚠️ Gunakan perintah ini dengan mengetikkan pesan setelah /bc.")
+
+    # Ambil daftar grup di mana bot adalah admin
+    async for dialog in bot.iter_dialogs():
+        if dialog.is_group or dialog.is_channel:
+            try:
+                chat = await bot.get_entity(dialog.id)
+                permissions = await bot.get_permissions(chat, bot.me)
+                
+                if permissions.is_admin:  # Pastikan bot adalah admin di grup ini
+                    message = await bot.send_message(chat, f"📢 **Broadcast:** {text}")
+
+                    # Hapus pesan setelah 30 detik
+                    await asyncio.sleep(30)
+                    await message.delete()
+            except Exception as e:
+                logging.error(f"❌ Gagal mengirim broadcast ke {dialog.name}: {e}")
+
+    await event.respond("✅ **Pesan broadcast telah dikirim ke semua grup.**")
+
+@bot.on(events.NewMessage(pattern="/gc"))
+async def list_admin_groups(event):
+    """Menampilkan daftar grup di mana bot menjadi admin."""
+    
+    # Periksa apakah pengguna memiliki izin untuk melihat daftar grup
+    if event.sender_id != OWNER_ID and event.sender_id not in admin_list:
+        return await event.respond("❌ Anda tidak memiliki izin untuk menggunakan perintah ini.")
+    
+    chat_list = []
+    
+    async for dialog in bot.iter_dialogs():
+        if dialog.is_group or dialog.is_channel:
+            try:
+                # Periksa apakah bot adalah admin di grup tersebut
+                chat = await bot.get_entity(dialog.id)
+                if chat.admin_rights:  # Jika bot memiliki hak admin
+                    chat_list.append(f"🔹 **{chat.title}** (`{chat.id}`)")
+            except:
+                pass  # Jika ada error saat mengambil data, lanjut ke chat berikutnya
+
+    # Jika bot tidak menjadi admin di grup mana pun
+    if not chat_list:
+        return await event.respond("📌 Bot tidak menjadi admin di grup mana pun.")
+
+    # Kirim daftar grup ke pengguna
+    response = "**📌 Daftar Grup di mana Bot Menjadi Admin:**\n\n" + "\n".join(chat_list)
+    await event.respond(response)
 
 # Tambahkan variabel untuk menyimpan jumlah pelanggaran pengguna
 mention_warnings = {}

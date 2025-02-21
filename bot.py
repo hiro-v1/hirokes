@@ -38,7 +38,23 @@ if os.path.exists("hirokesbot.session"):
     os.remove("hirokesbot.session")
 
 bot = TelegramClient("hirokesbot", API_ID, API_HASH).start(bot_token=BOT_TOKEN)
+bot_info = await bot.get_me()
 
+@bot.on(events.ChatAction)
+async def track_admin_status(event):
+    """Memantau jika bot menjadi admin atau dikeluarkan dari grup."""
+    chat = await event.get_chat()
+
+    # Jika bot ditambahkan sebagai admin
+    if event.user_added and event.added_by and event.user_id == bot_info.id:
+        add_admin_group(chat.id, chat.title)
+        logging.info(f"📌 Bot menjadi admin di grup: {chat.title} ({chat.id})")
+
+    # Jika bot dikeluarkan dari grup
+    elif event.user_kicked and event.kicked_by and event.user_id == bot_info.id:
+        remove_admin_group(chat.id)
+        logging.info(f"❌ Bot dikeluarkan dari grup: {chat.title} ({chat.id})")
+        
 # Memuat daftar admin dan pengguna yang diblokir dari database
 admin_list = get_admins()
 banned_users = get_banned_users()
@@ -84,21 +100,6 @@ async def sync_admin_groups():
             logging.error(f"❌ Gagal memeriksa grup {group['chat_name']} ({group['chat_id']}): {e}")
 
     logging.info(f"✅ Sinkronisasi selesai! Bot tetap menjadi admin di {len(updated_groups)} grup.")
-
-@bot.on(events.ChatAction)
-async def track_admin_status(event):
-    """Memantau jika bot menjadi admin atau dikeluarkan dari grup."""
-    chat = await event.get_chat()
-
-    # Jika bot ditambahkan sebagai admin
-    if event.user_added and event.added_by and event.user_id == bot.me.id:
-        add_admin_group(chat.id, chat.title)
-        logging.info(f"📌 Bot menjadi admin di grup: {chat.title} ({chat.id})")
-
-    # Jika bot dikeluarkan dari grup
-    elif event.user_kicked and event.kicked_by and event.user_id == bot.me.id:
-        remove_admin_group(chat.id)
-        logging.info(f"❌ Bot dikeluarkan dari grup: {chat.title} ({chat.id})")
 
 @bot.on(events.NewMessage(pattern="/start"))
 async def start_handler(event):
@@ -465,6 +466,8 @@ async def message_handler(event):
 
 async def main():
     logging.info("🚀 Bot sedang memeriksa grup tempatnya menjadi admin...")
+    global bot_info
+    bot_info = await bot.get_me()  # Fetch bot's information
     await sync_admin_groups()  # Sinkronisasi grup admin saat bot dimulai
     logging.info("✅ Sinkronisasi grup admin selesai!")
     

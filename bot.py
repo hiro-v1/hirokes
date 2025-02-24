@@ -22,7 +22,7 @@ from modules.database import (
 )
 from modules.log_cleaner import clean_logs
 from telethon.tl.functions.channels import GetParticipantRequest
-from telethon.tl.types import ChannelParticipantsSearch
+from telethon.tl.types import ChannelParticipantsSearch, ChannelParticipantsAdmins
 from telethon import *
 
 # Pastikan folder logs/ ada
@@ -97,14 +97,20 @@ async def sync_admin_groups():
     for group in groups:
         try:
             chat = await bot.get_entity(group["chat_id"])
+            
+            # 🔍 Ambil daftar admin grup menggunakan GetParticipants
+            participants = await bot(GetParticipants(chat, filter=ChannelParticipantsAdmins()))
+            admin_ids = {user.id for user in participants.users}
             permissions = await bot.get_permissions(chat, bot.me)
-
-            if permissions and permissions.is_admin:
+            
+            if bot.me.id in admin_ids:
                 updated_groups.append({"chat_id": chat.id, "chat_name": chat.title})
-                save_admin_group(chat.id, chat.title)
+                save_admin_group(chat.id, chat.title)  # Pastikan fungsi ini ada di database.py
+                logging.info(f"✅ Bot tetap menjadi admin di grup: {chat.title} ({chat.id})")
             else:
                 logging.warning(f"⚠️ Bot bukan lagi admin di grup: {chat.title} ({chat.id})")
-                remove_admin_group(chat.id)  # Hapus dari database
+                remove_admin_group(chat.id)  # Hapus dari database jika bukan admin
+
 
         except Exception as e:
             logging.error(f"❌ Gagal memeriksa grup {group['chat_name']} ({group['chat_id']}): {e}")

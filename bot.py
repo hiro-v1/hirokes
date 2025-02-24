@@ -47,10 +47,12 @@ bot = TelegramClient("hirokesbot", API_ID, API_HASH).start(bot_token=BOT_TOKEN)
 
 def update_data():
     """Perbarui daftar admin, blacklist, dan kata terlarang"""
-    global admin_list, banned_users, banned_words_set
+    global admin_list, banned_users, banned_words_set, admin_groups, user_warnings
     admin_list = get_admins()
     banned_users = get_banned_users()
     banned_words_set = get_banned_words()
+    admin_groups = get_admin_groups()
+    user_warnings = get_warnings()
     logging.info("✅ Data admin, blacklist, dan kata terlarang diperbarui.")
 
 @bot.on(events.ChatAction)
@@ -211,7 +213,7 @@ async def kirim_log(event):
 @bot.on(events.NewMessage(pattern="/adm"))
 async def tambah_admin(event):
     """Menambahkan admin yang dapat mengontrol bot."""
-    
+    update_data()
     if event.sender_id != OWNER_ID:
         return await event.respond("❌ Anda tidak memiliki izin untuk menggunakan perintah ini.")
 
@@ -236,6 +238,7 @@ async def tambah_admin(event):
 @bot.on(events.NewMessage(pattern="/unadm"))
 async def hapus_admin(event):
     """Menghapus admin dari daftar kontrol bot."""
+    update_data()
     if event.sender_id != OWNER_ID:
         return await event.respond("❌ Anda tidak memiliki izin untuk menggunakan perintah ini.")
 
@@ -275,6 +278,7 @@ async def tambah_kata_terlarang(event):
 @bot.on(events.NewMessage(pattern="/inbl"))
 async def tambah_pengguna_blacklist(event):
     """Menambahkan pengguna ke daftar blacklist."""
+    update_data()
     global banned_users
     if event.sender_id != OWNER_ID and event.sender_id not in admin_list:
         return await event.respond("❌ Anda tidak memiliki izin untuk menggunakan perintah ini.")
@@ -298,6 +302,7 @@ async def tambah_pengguna_blacklist(event):
 @bot.on(events.NewMessage(pattern="/unbl"))
 async def hapus_pengguna_blacklist(event):
     """Menghapus pengguna dari daftar blacklist."""
+    update_data()
     global banned_users
 
     if event.sender_id != OWNER_ID and event.sender_id not in admin_list:

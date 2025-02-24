@@ -430,7 +430,7 @@ async def message_handler(event):
     # Jika ada mention username
     if "@" in text:
         mentioned_user = text.split("@")[1].split()[0]
-       try:
+        try:
             participants = await bot(GetParticipantsRequest(
                 channel=event.chat_id,
                 filter=ChannelParticipantsSearch(mentioned_user),

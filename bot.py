@@ -90,7 +90,7 @@ async def run_schedule():
 async def sync_admin_groups():
     """Memeriksa dan memperbarui daftar grup di mana bot menjadi admin."""
     logging.info("🚀 Memeriksa grup tempat bot menjadi admin...")
-
+    update_data()
     groups = get_admin_groups()
     updated_groups = []
 
@@ -101,6 +101,7 @@ async def sync_admin_groups():
 
             if permissions and permissions.is_admin:
                 updated_groups.append({"chat_id": chat.id, "chat_name": chat.title})
+                save_admin_group(chat.id, chat.title)
             else:
                 logging.warning(f"⚠️ Bot bukan lagi admin di grup: {chat.title} ({chat.id})")
                 remove_admin_group(chat.id)  # Hapus dari database
@@ -110,7 +111,8 @@ async def sync_admin_groups():
             remove_admin_group(group["chat_id"])  # Hapus dari database jika gagal diakses
 
     logging.info(f"✅ Sinkronisasi selesai! Bot tetap menjadi admin di {len(updated_groups)} grup.")
-
+    return updated_groups
+    
 @bot.on(events.NewMessage(pattern="/start"))
 async def start_handler(event):
     """Menampilkan pesan sambutan bot."""

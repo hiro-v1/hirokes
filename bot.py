@@ -9,15 +9,18 @@ from telethon import TelegramClient, events, Button
 from telethon.tl.types import ChannelParticipantsAdmins
 from config import API_ID, API_HASH, BOT_TOKEN, OWNER_ID
 from modules.moderation import check_message, contains_restricted_chars
-from modules.ai import ai_response
+from modules.ai import ai_response, simple_ai_response
 from modules.database import (
     add_admin, remove_admin, get_admins, 
     add_banned_user, remove_banned_user, get_banned_users,
     add_banned_word, remove_banned_word, get_banned_words,
     banned_words, banned_users, add_admin_group,
-    remove_admin_group, get_admin_groups
+    remove_admin_group, get_admin_groups,
+    add_warning, get_warnings, reset_warnings
 )
 from modules.log_cleaner import clean_logs
+from telethon.tl.functions.channels import GetParticipants
+from telethon.tl.types import ChannelParticipantsSearch
 
 # Pastikan folder logs/ ada
 if not os.path.exists("logs"):
@@ -198,34 +201,84 @@ async def kirim_log(event):
 
 @bot.on(events.NewMessage())
 async def message_handler(event):
-    """Memeriksa pesan yang masuk ke grup jika bot dalam kondisi aktif."""
+    """Memeriksa pesan masuk, menangani blacklist, dan membalas pesan dengan AI."""
+    global banned_users
+    banned_users = get_banned_users()
+    
     if not bot_aktif:
         return  # Jika bot tidak aktif, abaikan semua pesan
 
     user_id = event.sender_id
-
+    text = event.message.text.lower()
+    
     # Skip deletion if the user is an admin or the owner
     if is_admin_or_owner(user_id):
         return
-
+        
     # Jika pengguna dalam daftar blokir, hapus pesan mereka
     if user_id in banned_users:
         await event.delete()
         logging.info(f"🚫 Pesan dari {user_id} dihapus karena pengguna ini diblokir.")
         return
 
-    text = event.message.text
+    # Periksa kata terlarang
+    if await check_message(text) or contains_restricted_chars(text):
+        await event.delete()
+        notification_message = await event.respond("⚠️ **hapus aja ah Alay.**")
+        await asyncio.sleep(5)
+        await notification_message.delete()
+        logging.info(f"🛑 Pesan dari {user_id} dihapus karena mengandung kata terlarang.")
+        return
+
+    # Jika ada mention username
+    if "@" in text:
+        mentioned_user = text.split("@")[1].split()[0]
+        try:
+            participants = await bot(GetParticipants(event.chat_id, filter=ChannelParticipantsSearch(mentioned_user)))
+            if not participants.users:
+                await event.delete()
+                add_warning(user_id)
+                warnings = get_warnings(user_id)
+
+                if warnings == 1:
+                    warning_message = await event.respond(f"⚠️ {event.sender.first_name}, tolong undang orang yang kamu mention.")
+                elif warnings == 2:
+                    warning_message = await event.respond(f"⚠️ Saya sudah memperingatkan, jika terus berlanjut saya akan memblokir Anda.")
+                else:
+                    add_banned_user(user_id)
+                    banned_users = get_banned_users()  # Perbarui daftar blokir
+                    logging.info(f"🚫 Pengguna diblokir: {user_id}")
+                    await event.respond(f"🚫 **{event.sender.first_name} telah diblokir karena pelanggaran berulang.**")
+                    return
+
+                await asyncio.sleep(5)
+                await warning_message.delete()
+                return
+            
+    # Periksa apakah pesan mengandung kata terlarang atau karakter spesial
     if await check_message(text) or contains_restricted_chars(text):
         await event.delete()
         notification_message = await event.respond("⚠️ **hapus aja ah Pesannya Alay.**")
         await asyncio.sleep(5)
         await notification_message.delete()
-        logging.info(f"🛑 Pesan dari {event.sender_id} dihapus karena melanggar aturan.")
+        logging.info(f"🛑 Pesan dari {user_id} dihapus karena mengandung kata terlarang atau karakter spesial.")
     elif text.lower().startswith("bot"):
         response = ai_response(text)
         await event.respond(response)
         logging.info(f"🤖 Bot merespons {event.sender_id} dengan AI.")
         
+    # **Respons AI Otomatis**
+    if text.startswith("/ask"):
+        query = text.replace("/ask", "").strip()
+        response = ai_response(query) if query else "Gunakan `/ask` diikuti pertanyaan Anda."
+    else:
+        response = simple_ai_response(text)
+
+    # Jika bot tidak memahami, berikan respon "Maksudnya?"
+    if response in ["", None, " "]:
+        response = "Maksudnya?"
+    await event.reply(response)
+
 @bot.on(events.NewMessage(pattern="/adm"))
 async def tambah_admin(event):
     """Menambahkan admin yang dapat mengontrol bot."""
@@ -438,11 +491,12 @@ async def message_handler(event):
             participants = await bot(GetParticipants(event.chat_id, filter=ChannelParticipantsSearch(mentioned_user)))
             if not participants.users:
                 await event.delete()
-                mention_warnings[user_id] = mention_warnings.get(user_id, 0) + 1
+                add_warning(user_id)
+                warnings = get_warnings(user_id)
 
-                if mention_warnings[user_id] == 1:
+                if warnings == 1:
                     warning_message = await event.respond(f"⚠️ {event.sender.first_name}, tolong undang orang yang kamu mention.")
-                elif mention_warnings[user_id] == 2:
+                elif warnings == 2:
                     warning_message = await event.respond(f"⚠️ Saya sudah memperingatkan, jika terus berlanjut saya akan memblokir Anda.")
                 else:
                     add_banned_user(user_id)

@@ -430,18 +430,6 @@ async def message_handler(event):
                 await asyncio.sleep(5)
                 await warning_message.delete()
                 return
-            
-    # Periksa apakah pesan mengandung kata terlarang atau karakter spesial
-    if await check_message(text) or contains_restricted_chars(text):
-        await event.delete()
-        notification_message = await event.respond("⚠️ **hapus aja ah Pesannya Alay.**")
-        await asyncio.sleep(5)
-        await notification_message.delete()
-        logging.info(f"🛑 Pesan dari {user_id} dihapus karena mengandung kata terlarang atau karakter spesial.")
-    elif text.lower().startswith("bot"):
-        response = ai_response(text)
-        await event.respond(response)
-        logging.info(f"🤖 Bot merespons {event.sender_id} dengan AI.")
         
     # **Respons AI Otomatis**
     if text.startswith("/ask"):

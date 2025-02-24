@@ -52,7 +52,7 @@ def update_data():
     banned_users = get_banned_users()
     banned_words_set = get_banned_words()
     admin_groups = get_admin_groups()
-    user_warnings = get_warnings()
+    user_warnings = {user_id: get_warnings(user_id) for user_id in banned_users}
     logging.info("✅ Data admin, blacklist, dan kata terlarang diperbarui.")
 
 @bot.on(events.ChatAction)

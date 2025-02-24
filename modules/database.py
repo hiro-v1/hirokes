@@ -77,7 +77,14 @@ def add_admin_group(chat_id, chat_name):
     """Menambahkan grup ke daftar di mana bot adalah admin."""
     if not admin_groups.find_one({"chat_id": chat_id}):
         admin_groups.insert_one({"chat_id": chat_id, "chat_name": chat_name})
-
+        
+def save_admin_group(chat_id, chat_name):
+    admin_groups.update_one(
+         {"chat_id": chat_id},
+         {"$set": {"chat_name": chat_name}},
+         upsert=True
+    )
+    
 def remove_admin_group(chat_id):
     """Menghapus grup dari daftar admin jika bot keluar atau dihapus sebagai admin."""
     admin_groups.delete_one({"chat_id": chat_id})

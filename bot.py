@@ -5,7 +5,8 @@ import schedule
 import os
 import time
 from datetime import datetime, timedelta
-from telethon import TelegramClient, events, Button
+from telethon.sync import TelegramClient
+from telethon import functions, types, events, Button
 from telethon.tl.types import ChannelParticipantsAdmins
 from telethon.errors.rpcerrorlist import ChatAdminRequiredError
 from config import API_ID, API_HASH, BOT_TOKEN, OWNER_ID
@@ -20,8 +21,9 @@ from modules.database import (
     add_warning, get_warnings, reset_warnings
 )
 from modules.log_cleaner import clean_logs
-from telethon.tl.functions.channels import GetParticipants
+from telethon.tl.functions.channels import GetParticipantRequest
 from telethon.tl.types import ChannelParticipantsSearch
+from telethon import *
 
 # Pastikan folder logs/ ada
 if not os.path.exists("logs"):
@@ -428,8 +430,14 @@ async def message_handler(event):
     # Jika ada mention username
     if "@" in text:
         mentioned_user = text.split("@")[1].split()[0]
-        try:
-            participants = await bot(GetParticipants(event.chat_id, filter=ChannelParticipantsSearch(mentioned_user)))
+       try:
+            participants = await bot(GetParticipantsRequest(
+                channel=event.chat_id,
+                filter=ChannelParticipantsSearch(mentioned_user),
+                offset=0,
+                limit=100,
+                hash=0
+            ))
             if not participants.users:
                 await event.delete()
                 add_warning(user_id)

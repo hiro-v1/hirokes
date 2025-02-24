@@ -7,6 +7,7 @@ import time
 from datetime import datetime, timedelta
 from telethon import TelegramClient, events, Button
 from telethon.tl.types import ChannelParticipantsAdmins
+from telethon.errors.rpcerrorlist import ChatAdminRequiredError
 from config import API_ID, API_HASH, BOT_TOKEN, OWNER_ID
 from modules.moderation import check_message, contains_restricted_chars
 from modules.ai import ai_response, simple_ai_response
@@ -42,6 +43,14 @@ if os.path.exists("hirokesbot.session"):
 
 bot = TelegramClient("hirokesbot", API_ID, API_HASH).start(bot_token=BOT_TOKEN)
 
+def update_data():
+    """Perbarui daftar admin, blacklist, dan kata terlarang"""
+    global admin_list, banned_users, banned_words_set
+    admin_list = get_admins()
+    banned_users = get_banned_users()
+    banned_words_set = get_banned_words()
+    logging.info("✅ Data admin, blacklist, dan kata terlarang diperbarui.")
+
 @bot.on(events.ChatAction)
 async def track_admin_status(event):
     """Memantau jika bot menjadi admin atau dikeluarkan dari grup."""
@@ -57,12 +66,6 @@ async def track_admin_status(event):
     elif event.user_id == bot_info.id and event.user_left:
         remove_admin_group(chat.id)
         logging.info(f"❌ Bot dikeluarkan dari grup: {chat.title} ({chat.id})")
-
-        
-# Memuat daftar admin dan pengguna yang diblokir dari database
-admin_list = get_admins()
-banned_users = get_banned_users()
-banned_words_set = get_banned_words()
 
 def is_admin_or_owner(user_id):
     return user_id == OWNER_ID or user_id in admin_list
@@ -142,6 +145,7 @@ async def help_handler(event):
 @bot.on(events.NewMessage(pattern="/aktifbt"))
 async def aktifkan_bot(event):
     """Mengaktifkan bot selama 1 bulan."""
+    update_data()
     global bot_aktif, bot_expiry
     if event.sender_id != OWNER_ID:
         return await event.respond("❌ Anda tidak memiliki izin untuk menggunakan perintah ini.")
@@ -153,6 +157,7 @@ async def aktifkan_bot(event):
 @bot.on(events.NewMessage(pattern="/unak"))
 async def matikan_bot(event):
     """Mematikan bot sepenuhnya."""
+    update_data()
     global bot_aktif
     if event.sender_id != OWNER_ID:
         return await event.respond("❌ Anda tidak memiliki izin untuk menggunakan perintah ini.")    
@@ -163,7 +168,7 @@ async def matikan_bot(event):
 @bot.on(events.NewMessage(pattern="/kontrol"))
 async def kontrol_bot(event):
     """Menampilkan tombol kontrol bot (ON/OFF)."""
-    
+    update_data()
     global admin_list
     admin_list = get_admins()  # Ambil ulang daftar admin dari database setiap kali perintah dijalankan
     
@@ -377,35 +382,49 @@ mention_warnings = {}
 
 @bot.on(events.NewMessage())
 async def message_handler(event):
-    """Memeriksa pesan masuk, menangani blacklist, dan membalas pesan dengan AI."""
-    global banned_users
-    banned_users = get_banned_users()
-    
+    """Memeriksa pesan masuk, menangani blacklist, dan membalas dengan AI."""
     if not bot_aktif:
-        return  # Jika bot tidak aktif, abaikan semua pesan
+        return  # Abaikan jika bot nonaktif
 
     user_id = event.sender_id
     text = event.message.text.lower()
-    
-    # Skip deletion if the user is an admin or the owner
-    if is_admin_or_owner(user_id):
-        return
-        
-    # Jika pengguna dalam daftar blokir, hapus pesan mereka
+
+    update_data()  # Perbarui daftar pengguna terlarang jika berubah
+
+    # Lewati admin dan owner
+    if user_id == OWNER_ID or user_id in admin_list:
+        return  # Owner dan admin diabaikan
+
+
+    # Hapus pesan jika pengguna diblokir
     if user_id in banned_users:
         await event.delete()
-        logging.info(f"🚫 Pesan dari {user_id} dihapus karena pengguna ini diblokir.")
+        logging.info(f"🚫 Pesan dari {user_id} dihapus (pengguna terblokir).")
         return
 
-    # Periksa kata terlarang
+    # Pengecekan moderasi (gabungan)
     if await check_message(text) or contains_restricted_chars(text):
         await event.delete()
-        notification_message = await event.respond("⚠️ **hapus aja ah Alay.**")
+        notification_message = await event.respond("⚠️ **APUS aja ah ALAY.**")
         await asyncio.sleep(5)
         await notification_message.delete()
-        logging.info(f"🛑 Pesan dari {user_id} dihapus karena mengandung kata terlarang.")
+        logging.info(f"🛑 Pesan dari {user_id} dihapus (melanggar aturan).")
         return
 
+    # Jika ada error, catat ke log
+    try:
+        if text.startswith("/ask"):
+            query = text.replace("/ask", "").strip()
+            response = ai_response(query) if query else "Gunakan `/ask` diikuti pertanyaan Anda."
+        else:
+            response = simple_ai_response(text)
+
+        if response in ["", None, " "]:
+            response = "Maksudnya?"
+        await event.reply(response)
+    except Exception as e:
+        logging.error(f"❌ Error saat menangani pesan dari {user_id}: {e}")
+    
     # Jika ada mention username
     if "@" in text:
         mentioned_user = text.split("@")[1].split()[0]
@@ -417,31 +436,22 @@ async def message_handler(event):
                 warnings = get_warnings(user_id)
 
                 if warnings == 1:
-                    warning_message = await event.respond(f"⚠️ {event.sender.first_name}, tolong undang orang yang kamu mention.")
+                    warning_message = await event.respond(f"⚠️ {event.sender.first_name}, invit dulu orangnya buat join MOGEN.")
                 elif warnings == 2:
                     warning_message = await event.respond(f"⚠️ Saya sudah memperingatkan, jika terus berlanjut saya akan memblokir Anda.")
-                else:
-                    add_banned_user(user_id)
-                    banned_users = get_banned_users()  # Perbarui daftar blokir
-                    logging.info(f"🚫 Pengguna diblokir: {user_id}")
-                    await event.respond(f"🚫 **{event.sender.first_name} telah diblokir karena pelanggaran berulang.**")
-                    return
-
+                else:  # Jika lebih dari 2 peringatan, blokir pengguna
+                   add_banned_user(user_id)
+                   update_data()
+                   await event.respond(f"🚫 **{event.sender.first_name} telah diblokir.**")
+                   return
+                    
                 await asyncio.sleep(5)
                 await warning_message.delete()
-                return
-        
-    # **Respons AI Otomatis**
-    if text.startswith("/ask"):
-        query = text.replace("/ask", "").strip()
-        response = ai_response(query) if query else "Gunakan `/ask` diikuti pertanyaan Anda."
-    else:
-        response = simple_ai_response(text)
+        except ChatAdminRequiredError:
+            logging.error("❌ Bot tidak memiliki izin melihat anggota grup.")
+        except Exception as e:
+            logging.error(f"⚠️ Gagal memeriksa mention: {e}")
 
-    # Jika bot tidak memahami, berikan respon "Maksudnya?"
-    if response in ["", None, " "]:
-        response = "Maksudnya?"
-    await event.reply(response)
 
 async def main():
     global bot_info

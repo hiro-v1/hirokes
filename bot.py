@@ -21,6 +21,7 @@ from modules.database import (
     add_warning, get_warnings, reset_warnings
 )
 from modules.log_cleaner import clean_logs
+from modules.chatbot import chatbot_response
 from telethon.tl.functions.channels import GetParticipantRequest
 from telethon.tl.types import ChannelParticipantsSearch, ChannelParticipantsAdmins
 from telethon import *
@@ -116,7 +117,7 @@ async def sync_admin_groups():
 
     logging.info(f"✅ Sinkronisasi selesai! Bot tetap menjadi admin di {len(updated_groups)} grup.")
     return updated_groups
-    
+
 @bot.on(events.NewMessage(pattern="/start"))
 async def start_handler(event):
     """Menampilkan pesan sambutan bot."""
@@ -137,15 +138,17 @@ async def help_handler(event):
     - /inbl (reply user) → Blokir pengguna (pesannya selalu dihapus)
     - /bl (reply text or typing text) → Tambah kata terlarang
     - /unbl (reply text or typing text) → Hapus kata terlarang
-
+    - /ask (text) → Buat nanya ke bot
+    
     **🔹 Owner Commands (@hiro_v1):**
     - /aktifbt → Aktifkan bot selama 1 bulan
     - /unak → Matikan bot
     - /ceklog → Kirim file log ke owner
     - /kontrol → Menampilkan tombol ON & OFF
     - /adm (reply user) → Tambah admin yang bisa mengontrol bot 
-    - /unbl (reply user) → Hapus pengguna dari daftar blokir 
+    - /unbl (reply user) → Hapus pengguna dari daftar blokir
     - /unadm (reply user) → Hapus admin dari daftar kontrol
+    
 
     **🔹 All Users:**
     - /ask → Mengajukan pertanyaan ke AI HirokesBot
@@ -214,8 +217,6 @@ async def kirim_log(event):
     except Exception as e:
         await event.respond("❌ Gagal mengirim log.")         
         logging.error(f"⚠️ Error mengirim log: {e}")  
-
-
 
 @bot.on(events.NewMessage(pattern="/adm"))
 async def tambah_admin(event):
@@ -395,25 +396,29 @@ async def broadcast_message(event):
     await event.respond(report_message)
 
 @bot.on(events.NewMessage(pattern="/ask"))
-async def ask_handler(event):
-    """Handles the /ask command."""
+async def ask_chatgpt(event):
+    """Menjawab pertanyaan dengan API ChatGPT."""
     query = event.message.text.replace("/ask", "").strip()
-    if query:
-        response = ai_response(query)
-        await event.reply(response)
-    else:
-        await event.reply("Gunakan `/ask` diikuti pertanyaan Anda.")
+    
+    if not query:
+        return await event.respond("Gunakan `/ask` diikuti pertanyaan kamu.")
+
+    thinking_message = await event.respond("⏳ bentar mikir dulu...")  
+    response = ai_response(query)
+    await bot.delete_messages(event.chat_id, thinking_message.id)
+    await event.respond(response)
 
 # Tambahkan variabel untuk menyimpan jumlah pelanggaran pengguna
 mention_warnings = {}
 
 @bot.on(events.NewMessage())
 async def message_handler(event):
-    """Memeriksa pesan masuk, menangani blacklist, dan membalas dengan AI."""
+    """Memeriksa pesan masuk, menangani blacklist, dan merespons dengan chatbot."""
     if not bot_aktif:
         return  # Abaikan jika bot nonaktif
-
-    user_id = event.sender_id
+        
+    user_id = event.sender_id    
+    user_name = event.sender.first_name  # Mengambil nama pengguna
     text = event.message.text.lower()
 
     update_data()  # Perbarui daftar pengguna terlarang jika berubah
@@ -425,26 +430,22 @@ async def message_handler(event):
     # Hapus pesan jika pengguna diblokir
     if user_id in banned_users:
         await event.delete()
-        logging.info(f"🚫 Pesan dari {user_id} dihapus (pengguna terblokir).")
+        logging.info(f"🚫 Pesan dari {user_name} dihapus (pengguna terblokir).")
         return
 
-    # Pengecekan moderasi (gabungan)
+    # Pengecekan moderasi (kata terlarang)
     if await check_message(text) or contains_restricted_chars(text):
         await event.delete()
-        notification_message = await event.respond("⚠️ **APUS aja ah ALAY.**")
+        warning_text = f"⚠️ gua apus ya **{user_name}** soalnya lu alay"
+        notification_message = await event.respond(warning_text)
         await asyncio.sleep(5)
         await notification_message.delete()
-        logging.info(f"🛑 Pesan dari {user_id} dihapus (melanggar aturan).")
+        logging.info(f"🛑 Pesan dari {user_name} ({user_id}) dihapus (melanggar aturan).")
         return
 
-    # Jika ada error, catat ke log
-    try:
-        response = simple_ai_response(text)
-        if response in ["", None, " "]:
-            response = "Maksudnya?"
-        await event.reply(response)
-    except Exception as e:
-        logging.error(f"❌ Error saat menangani pesan dari {user_id}: {e}")
+    # **Gunakan chatbot jika tidak ada pelanggaran**
+    response = chatbot_response(text)
+    await event.respond(response)
     
     # Jika ada mention username
     if "@" in text:

@@ -62,7 +62,7 @@ async def track_admin_status(event):
     chat = await event.get_chat()
 
     # Jika bot ditambahkan sebagai admin
-    if event.new_participant and event.new_participant.bot and event.new_participant.id == bot_info.id:
+    if event.added_by and event.added_by.bot and event.added_by.id == bot_info.id:
         add_admin_group(chat.id, chat.title)
         logging.info(f"📌 Bot menjadi admin di grup: {chat.title} ({chat.id})")
 

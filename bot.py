@@ -58,6 +58,7 @@ def update_data():
 @bot.on(events.ChatAction)
 async def track_admin_status(event):
     """Memantau jika bot menjadi admin atau dikeluarkan dari grup."""
+    update_data()
     global bot_info
     chat = await event.get_chat()
 
@@ -204,6 +205,7 @@ async def button_callback(event):
 @bot.on(events.NewMessage(pattern="/ceklog"))
 async def kirim_log(event):
     """Mengirim file log ke pemilik bot."""
+    update_data()
     if event.sender_id != OWNER_ID:
         return await event.respond("❌ Anda tidak memiliki izin untuk menggunakan perintah ini.")
     try:
@@ -264,6 +266,7 @@ async def hapus_admin(event):
 @bot.on(events.NewMessage(pattern="/bl"))
 async def tambah_kata_terlarang(event):
     """Menambah kata terlarang ke dalam database."""
+    update_data()
     global banned_words_set
     if event.sender_id != OWNER_ID and event.sender_id not in admin_list:
         return await event.respond("❌ Anda tidak memiliki izin untuk menggunakan perintah ini.")
@@ -331,6 +334,7 @@ async def hapus_pengguna_blacklist(event):
 @bot.on(events.NewMessage(pattern="/gc"))
 async def list_admin_groups(event):
     """Menampilkan daftar grup tempat bot menjadi admin."""
+    update_data()
     if event.sender_id != OWNER_ID:
         return await event.respond("❌ Anda tidak memiliki izin untuk menggunakan perintah ini.")
 
@@ -348,6 +352,7 @@ async def list_admin_groups(event):
 @bot.on(events.NewMessage(pattern="/bc"))
 async def broadcast_message(event):
     """Mengirim pesan ke semua grup tempat bot menjadi admin dan menghapusnya setelah 30 detik."""
+    update_data()
     if event.sender_id != OWNER_ID:
         return await event.respond("❌ Anda tidak memiliki izin untuk menggunakan perintah ini.")
 

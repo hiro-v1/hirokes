@@ -389,6 +389,16 @@ async def broadcast_message(event):
 
     await event.respond(report_message)
 
+@bot.on(events.NewMessage(pattern="/ask"))
+async def ask_handler(event):
+    """Handles the /ask command."""
+    query = event.message.text.replace("/ask", "").strip()
+    if query:
+        response = ai_response(query)
+        await event.reply(response)
+    else:
+        await event.reply("Gunakan `/ask` diikuti pertanyaan Anda.")
+
 # Tambahkan variabel untuk menyimpan jumlah pelanggaran pengguna
 mention_warnings = {}
 
@@ -407,7 +417,6 @@ async def message_handler(event):
     if user_id == OWNER_ID or user_id in admin_list:
         return  # Owner dan admin diabaikan
 
-
     # Hapus pesan jika pengguna diblokir
     if user_id in banned_users:
         await event.delete()
@@ -425,12 +434,7 @@ async def message_handler(event):
 
     # Jika ada error, catat ke log
     try:
-        if text.startswith("/ask"):
-            query = text.replace("/ask", "").strip()
-            response = ai_response(query) if query else "Gunakan `/ask` diikuti pertanyaan Anda."
-        else:
-            response = simple_ai_response(text)
-
+        response = simple_ai_response(text)
         if response in ["", None, " "]:
             response = "Maksudnya?"
         await event.reply(response)

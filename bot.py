@@ -97,7 +97,6 @@ async def sync_admin_groups():
     for group in groups:
         try:
             chat = await bot.get_entity(group["chat_id"])
-            
             # 🔍 Ambil daftar admin grup menggunakan GetParticipants
             participants = await bot(GetParticipants(chat, filter=ChannelParticipantsAdmins()))
             admin_ids = {user.id for user in participants.users}
@@ -110,8 +109,6 @@ async def sync_admin_groups():
             else:
                 logging.warning(f"⚠️ Bot bukan lagi admin di grup: {chat.title} ({chat.id})")
                 remove_admin_group(chat.id)  # Hapus dari database jika bukan admin
-
-
         except Exception as e:
             logging.error(f"❌ Gagal memeriksa grup {group['chat_name']} ({group['chat_id']}): {e}")
             remove_admin_group(group["chat_id"])  # Hapus dari database jika gagal diakses

@@ -420,7 +420,9 @@ async def message_handler(event):
     user_id = event.sender_id    
     user_name = event.sender.first_name  # Mengambil nama pengguna
     text = event.message.text.lower()
-
+   
+    if user_id == bot_info.id:
+        return
     update_data()  # Perbarui daftar pengguna terlarang jika berubah
 
     # Lewati admin dan owner

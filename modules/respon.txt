@@ -210,6 +210,9 @@ dasar = apa dasarnya? | kok kamu gitu si? | kenapa-kenapa sini crita
 muak = eh kenapa si? crita sini | ya udah yang tabah | jangan ngambek dong
 woi = eh ehe apa woi | woi woi kek kenal | napa? bawel
 siapa = siapa ya? | siapa dimana? pwnya | siapa sangka
+thx = thank you | sama-sama | thnk tuu
+thnk = sama-sama | iya santai | yoi selow
+
 brengsek = ga boleh kasar ah | lu kali yg brengsek | jelek kali typingan mu
 hah = hahehoh aja lu jelek amat | hah hah hah mulut lu bau | apa? ga paham? gitu aja ga ngerti
 mls = kenapa si emang? | mules? ee sana | crita sini

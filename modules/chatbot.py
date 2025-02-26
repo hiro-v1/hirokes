@@ -42,4 +42,4 @@ def chatbot_response(message):
         if keyword in message:  # Jika ada kata kunci dalam pesan
             return random.choice(RESPONSES[keyword])
 
-    return "Maaf, saya tidak mengerti. Bisa jelaskan lebih lanjut?"
+    return "maksud?. bang @hiro_v1 tau ngga?"

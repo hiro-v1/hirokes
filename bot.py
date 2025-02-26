@@ -418,7 +418,7 @@ async def message_handler(event):
         return  # Abaikan jika bot nonaktif
         
     user_id = event.sender_id    
-    user_name = event.sender.first_name  # Mengambil nama pengguna
+    user_name = event.sender.first_name if event.sender else f"Pengguna {user_id}"
     text = event.message.text.lower()
    
     if user_id == bot_info.id:

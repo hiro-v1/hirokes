@@ -445,7 +445,7 @@ async def message_handler(event):
 
     # **Gunakan chatbot jika tidak ada pelanggaran**
     response = chatbot_response(text)
-    await event.respond(response)
+    await event.reply(response)
     
     # Jika ada mention username
     if "@" in text:

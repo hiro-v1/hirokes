@@ -11,7 +11,7 @@ from telethon.tl.types import ChannelParticipantsAdmins
 from telethon.errors.rpcerrorlist import ChatAdminRequiredError
 from config import API_ID, API_HASH, BOT_TOKEN, OWNER_ID
 from modules.moderation import check_message, contains_restricted_chars
-from modules.ai import ai_response,
+from modules.ai import ai_response
 from modules.database import (
     add_admin, remove_admin, get_admins, 
     add_banned_user, remove_banned_user, get_banned_users,
